@@ -8,7 +8,4 @@ import faulthandler
 from samadhi import Samadhi
 
 faulthandler.enable()
-if len(sys.argv) == 2:
-    Samadhi(filename=sys.argv[1])
-else:
-    Samadhi()
+Samadhi()
