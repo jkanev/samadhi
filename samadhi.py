@@ -50,7 +50,6 @@ class Mind:
 
     # eeg display research controls → put into new class soon
     _displaylayout = False
-    _displaywidget = False
     _displaytab = False
     _eeg_axes = False
     _eeg_canvas = False
@@ -125,8 +124,7 @@ class Mind:
 
         # create widgets
         self._displaytab = QtWidgets.QWidget()
-        self._displaywidget = QtWidgets.QWidget(parent=self._displaytab)
-        self._displaylayout = QtWidgets.QGridLayout(self._displaywidget)
+        self._displaylayout = QtWidgets.QGridLayout(self._displaytab)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Policy.Maximum, QtWidgets.QSizePolicy.Policy.Maximum)
         self._displaytab.setSizePolicy(sizePolicy)
         self._parent_tabwidget.addTab(self._displaytab, "")
@@ -165,8 +163,10 @@ class Mind:
 
         # set rainbow colours
         for c in range(0, len(eeg_lines)):
-            eeg_lines[c].set_color(color=(c/32.0, 0.5*c/32.0, 1-c/32.0))
-            fft_lines[c].set_color(color=(c/32.0, 0.5*c/32.0, 1-c/32.0))
+            eeg_lines[c].set_color(color=(1-c/32.0, 0.5*c/32.0, c/32.0))
+            eeg_lines[c].set_linewidth(1)
+            fft_lines[c].set_color(color=(1-c/32.0, 0.5*c/32.0, c/32.0))
+            fft_lines[c].set_linewidth(1)
 
         while self._streaming:
             time.sleep(1)
