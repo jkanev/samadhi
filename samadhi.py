@@ -130,16 +130,22 @@ class Mind:
         self._parent_tabwidget.addTab(self._displaytab, "")
         self._parent_tabwidget.setTabText(self._parent_tabwidget.indexOf(self._displaytab), self._name)
 
+        # channel names
+        c_names = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j',
+                   'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
+                   'u', 'v', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D',
+                   'E', 'F']
+        eeg_ticks = [float(32.0 - c) * 20e-6 for c in range(0, 32)]
+        fft_ticks = [float(32.0 - c) * 10e-4 for c in range(0, 32)]
+
         # first eeg plot
         figure = plt.figure()
         self._eeg_canvas = FigureCanvasQTAgg(figure)
         self._eeg_axes = figure.add_subplot(111)
         self._displaylayout.addWidget(self._eeg_canvas, 0, 0, 1, 1)
         self._eeg_axes.set_ylim(bottom=-20e-6, top=7e-4)
-        self._eeg_axes.xaxis.set_tick_params(labelbottom=False)
-        self._eeg_axes.yaxis.set_tick_params(labelleft=False)
         self._eeg_axes.set_xticks([])
-        self._eeg_axes.set_yticks([])
+        self._eeg_axes.set_yticks(ticks=eeg_ticks, labels=c_names)
 
         # first fft plot
         figure = plt.figure()
@@ -147,10 +153,8 @@ class Mind:
         self._fft_axes = figure.add_subplot(111)
         self._displaylayout.addWidget(self._fft_canvas, 0, 1, 1, 1)
         self._fft_axes.set_ylim(bottom=-10e-6, top=35e-3)
-        self._fft_axes.xaxis.set_tick_params(labelbottom=False)
-        self._fft_axes.yaxis.set_tick_params(labelleft=False)
         self._fft_axes.set_xticks([])
-        self._fft_axes.set_yticks([])
+        self._fft_axes.set_yticks(ticks=fft_ticks, labels=c_names)
 
         self._displaylayout.setColumnStretch(0, 3)
         self._displaylayout.setColumnStretch(1, 1)
@@ -169,7 +173,7 @@ class Mind:
             fft_lines[c].set_linewidth(1)
 
         while self._streaming:
-            time.sleep(1)
+            time.sleep(0.5)
             for c in range(0, len(eeg_lines)):
                 eeg_lines[c].set_ydata((self._eeg_data.T)[c] + float(32.0 - c) * 20e-6)
                 fft_lines[c].set_ydata((self._fft_data.T)[c][:50] + float(32.0 - c) * 10e-4)
