@@ -11,6 +11,7 @@ import threading
 import numpy as np
 import time
 import mne
+from mne_lsl.stream import StreamLSL as Stream
 from matplotlib import use as mpl_use
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, FigureManagerQT
 from matplotlib import pyplot as plt
@@ -25,11 +26,11 @@ class Mind:
     _name = ""           # the person's name
 
     # data streaming related
-    _streaming = True  # whether we're streaming currently
-    _data_a = []       # two 500 ms buffers, will be filled alternatingly
-    _data_b = []
+    _streaming = True    # whether we're streaming currently
+    _data_seconds = 5.0  # how much data do we have in the _eeg_data array
     _eeg_data = False    # pointer to the buffer that has just been filled, either data_a or data_b
     _fft_data = False    # buffer containing the fft
+    _bnd_data = False    # frequency band data
     _eeg_stream = None   # the lsl eeg input stream inlet, if in eeg mode
     _clc_stream = None   # the lsl calculation output stream outlet, if in calculation mode
 
@@ -55,6 +56,10 @@ class Mind:
     _eeg_canvas = False
     _fft_axes = False
     _fft_canvas = False
+    _bnd_axes = False
+    _bnd_canvas = False
+    _hst_axes = False
+    _hst_canvas = False
 
     def __init__(self, lineedit_name, combobox_streamname, combobox_streamid, checkbox_connect,
                        label_hosttext, label_channelstext, label_samplingratetext, parent_tabwidget):
@@ -96,8 +101,9 @@ class Mind:
                 # set gui info
                 channels = s.channel_count()
                 srate = s.nominal_srate()
-                samples = int(2.0 * srate)
-                self._eeg_stream = StreamInlet(s)
+                samples = int(self._data_seconds * srate)
+                self._eeg_stream = Stream(self._data_seconds, name=self._combobox_streamname.currentText(), stype="EEG",
+                                          source_id=self._combobox_streamid.currentText())
                 self._label_hosttext.setText(s.hostname())
                 self._label_channelstext.setText("{}".format(channels))
                 self._label_samplingratetext.setText("{:0.1f}".format(srate))
@@ -147,6 +153,7 @@ class Mind:
         self._eeg_axes.set_ylim(bottom=-20e-6, top=7e-4)
         self._eeg_axes.set_xticks([])
         self._eeg_axes.set_yticks(ticks=eeg_ticks, labels=c_names)
+        self._eeg_axes.set_title('EEG over {:0.1f} Seconds'.format(self._data_seconds))
 
         # first fft plot
         figure = plt.figure()
@@ -156,15 +163,39 @@ class Mind:
         self._fft_axes.set_ylim(bottom=-10e-6, top=35e-3)
         self._fft_axes.set_xticks([])
         self._fft_axes.set_yticks(ticks=fft_ticks, labels=c_names)
+        self._fft_axes.set_title('FFT over {:0.1f} Seconds'.format(self._data_seconds))
+
+        # bandpass history plot
+        figure = plt.figure()
+        self._hst_canvas = FigureCanvasQTAgg(figure)
+        self._hst_axes = figure.add_subplot(111)
+        self._displaylayout.addWidget(self._hst_canvas, 1, 0, 1, 1)
+        self._hst_axes.set_xticks([])
+        self._hst_axes.set_yticks([])
+        self._hst_axes.set_title('Band History'.format(self._data_seconds))
+
+        # bandpass bar graph
+        figure = plt.figure()
+        self._bnd_canvas = FigureCanvasQTAgg(figure)
+        self._bnd_axes = figure.add_subplot(111)
+        self._displaylayout.addWidget(self._bnd_canvas, 1, 1, 1, 1)
+        self._bnd_axes.set_xticks([])
+        self._bnd_axes.set_yticks([])
+        self._bnd_axes.set_title('Frequency Bands'.format(self._data_seconds))
 
         self._displaylayout.setColumnStretch(0, 3)
         self._displaylayout.setColumnStretch(1, 1)
+        self._displaylayout.setRowStretch(0, 2)
+        self._displaylayout.setRowStretch(1, 1)
 
     def _display_continuous(self):
 
         # eeg + fft
-        eeg_lines = self._eeg_axes.plot(self._eeg_data[:, :-1])  # the last channel in the simulator has the alpha intensity
-        fft_lines = self._fft_axes.plot(self._fft_data[:50, :-1])
+        time.sleep(1)
+        eeg_lines = self._eeg_axes.plot(self._eeg_data[:-1, :].T)  # the last channel in the simulator has the alpha intensity
+        fft_lines = self._fft_axes.plot(self._fft_data[:-1, :120].T)
+        bnd_bars = self._bnd_axes.bar([1, 2, 3, 4, 5], [1, 2, 5, 3, 1])
+        hst_lines = self._hst_axes.plot(np.sin(np.arange(0.0, 20, 0.01)))
 
         # set rainbow colours
         for c in range(0, len(eeg_lines)):
@@ -174,12 +205,14 @@ class Mind:
             fft_lines[c].set_linewidth(1)
 
         while self._streaming:
-            time.sleep(0.5)
+            time.sleep(0.1)
             for c in range(0, len(eeg_lines)):
-                eeg_lines[c].set_ydata((self._eeg_data.T)[c] + float(32.0 - c) * 20e-6)
-                fft_lines[c].set_ydata((self._fft_data.T)[c][:50] + float(32.0 - c) * 10e-4)
+                eeg_lines[c].set_ydata((self._eeg_data)[c] + float(32.0 - c) * 20e-6)
+                fft_lines[c].set_ydata((self._fft_data)[c][:120] + float(32.0 - c) * 10e-4)
             self._eeg_canvas.draw()
             self._fft_canvas.draw()
+            self._bnd_canvas.draw()
+            self._hst_canvas.draw()
 
     def _read_data(self, samples, channels):
         """
@@ -187,23 +220,13 @@ class Mind:
         :return:
         """
 
-        # init buffers
-        self._data_a = np.zeros((samples, channels))
-        self._data_b = np.zeros((samples, channels))
-        self._eeg_data = self._data_b
+        self._eeg_stream.connect(acquisition_delay=0.1, processing_flags="all")
+        self._eeg_stream.get_data()  # reset the number of new samples after the filter is applied
 
         # start streaming loop
         while self._streaming:
-
-            # read into buffer a
-            for s in range(0, samples):
-                self._data_a[s], timestamp = self._eeg_stream.pull_sample()
-            self._eeg_data = self._data_a
-
-            # read into buffer b
-            for s in range(0, samples):
-                self._data_b[s], timestamp = self._eeg_stream.pull_sample()
-            self._eeg_data = self._data_b
+            time.sleep(0.1)
+            self._eeg_data, ts = self._eeg_stream.get_data()
 
     def _analyse_data(self):
         """
@@ -213,9 +236,11 @@ class Mind:
 
         # start streaming loop
         while self._streaming:
-            self._fft_data = np.fft.rfft(self._eeg_data, axis=0)
-            self._fft_data = np.abs(self._fft_data)
-
+            try:
+                self._fft_data = np.fft.rfft(self._eeg_data, axis=1)
+                self._fft_data = np.abs(self._fft_data)
+            except Exception as e:
+                print(e)
 
 
 

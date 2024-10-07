@@ -1,5 +1,6 @@
 mne
 pylsl
+mne_lsl
 edfio
 # liblsl via https://github.com/sccn/liblsl/releases, use latest ubuntu on debian
 
