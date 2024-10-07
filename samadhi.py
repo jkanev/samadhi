@@ -131,12 +131,13 @@ class Mind:
         self._parent_tabwidget.setTabText(self._parent_tabwidget.indexOf(self._displaytab), self._name)
 
         # channel names
-        c_names = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j',
-                   'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
-                   'u', 'v', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D',
-                   'E', 'F']
-        eeg_ticks = [float(32.0 - c) * 20e-6 for c in range(0, 32)]
-        fft_ticks = [float(32.0 - c) * 10e-4 for c in range(0, 32)]
+        c_names = ['Fp1', 'Fpz', 'Fp2', 'AFz', 'F7',  'F3',  'Fz', 'F4',
+                   'F8',  'FC5', 'FC1', 'FC2', 'FC6', 'T7',  'C3', 'Cz',
+                   'C4',  'T8',  'CP5', 'CP1', 'CP2', 'CP6', 'P7', 'P3',
+                   'Pz',  'P4',  'P8', 'POz', 'O1', 'Oz', 'O2']
+
+        eeg_ticks = [float(32.0 - c) * 20e-6 for c in range(0, 31)]
+        fft_ticks = [float(32.0 - c) * 10e-4 for c in range(0, 31)]
 
         # first eeg plot
         figure = plt.figure()
