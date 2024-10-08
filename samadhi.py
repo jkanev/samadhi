@@ -28,9 +28,12 @@ class Mind:
     # data streaming related
     _streaming = True    # whether we're streaming currently
     _data_seconds = 5.0  # how much data do we have in the _eeg_data array
+    _sampling_rate = 0   # sampling rate of eeg data
+    _channels = 31       # number of channels in the data
     _eeg_data = False    # pointer to the buffer that has just been filled, either data_a or data_b
     _fft_data = False    # buffer containing the fft
-    _bnd_data = False    # frequency band data
+    _bnd_data = False    # frequency band data: band frequencies
+    _hst_data = False    # frequency band data: ring buffer that is constantly rooled
     _eeg_stream = None   # the lsl eeg input stream inlet, if in eeg mode
     _clc_stream = None   # the lsl calculation output stream outlet, if in calculation mode
 
@@ -102,6 +105,7 @@ class Mind:
                 channels = s.channel_count()
                 srate = s.nominal_srate()
                 samples = int(self._data_seconds * srate)
+                self._sampling_rate = srate
                 self._eeg_stream = Stream(self._data_seconds, name=self._combobox_streamname.currentText(), stype="EEG",
                                           source_id=self._combobox_streamid.currentText())
                 self._label_hosttext.setText(s.hostname())
@@ -163,13 +167,14 @@ class Mind:
         self._fft_axes.set_ylim(bottom=-10e-6, top=35e-3)
         self._fft_axes.set_xticks([])
         self._fft_axes.set_yticks(ticks=fft_ticks, labels=c_names)
-        self._fft_axes.set_title('FFT over {:0.1f} Seconds'.format(self._data_seconds))
+        self._fft_axes.set_title('FFT Amplitude over {:0.1f} Seconds'.format(self._data_seconds))
 
         # bandpass history plot
         figure = plt.figure()
         self._hst_canvas = FigureCanvasQTAgg(figure)
         self._hst_axes = figure.add_subplot(111)
         self._displaylayout.addWidget(self._hst_canvas, 1, 0, 1, 1)
+        self._hst_axes.set_ylim([0.0, 0.004])
         self._hst_axes.set_xticks([])
         self._hst_axes.set_yticks([])
         self._hst_axes.set_title('Band History'.format(self._data_seconds))
@@ -179,9 +184,10 @@ class Mind:
         self._bnd_canvas = FigureCanvasQTAgg(figure)
         self._bnd_axes = figure.add_subplot(111)
         self._displaylayout.addWidget(self._bnd_canvas, 1, 1, 1, 1)
+        self._bnd_axes.set_ylim([0.0, 0.004])
         self._bnd_axes.set_xticks([])
         self._bnd_axes.set_yticks([])
-        self._bnd_axes.set_title('Frequency Bands'.format(self._data_seconds))
+        self._bnd_axes.set_title('Frequency Band Average'.format(self._data_seconds))
 
         self._displaylayout.setColumnStretch(0, 3)
         self._displaylayout.setColumnStretch(1, 1)
@@ -190,12 +196,13 @@ class Mind:
 
     def _display_continuous(self):
 
+        time.sleep(1.0)
+
         # eeg + fft
-        time.sleep(1)
         eeg_lines = self._eeg_axes.plot(self._eeg_data[:-1, :].T)  # the last channel in the simulator has the alpha intensity
-        fft_lines = self._fft_axes.plot(self._fft_data[:-1, :120].T)
-        bnd_bars = self._bnd_axes.bar([1, 2, 3, 4, 5], [1, 2, 5, 3, 1])
-        hst_lines = self._hst_axes.plot(np.sin(np.arange(0.0, 20, 0.01)))
+        fft_lines = self._fft_axes.plot(self._fft_data[:, :120].T)
+        bnd_bars = self._bnd_axes.bar([1, 2, 3, 4, 5], self._bnd_data)
+        hst_lines = self._hst_axes.plot(self._hst_data.T)
 
         # set rainbow colours
         for c in range(0, len(eeg_lines)):
@@ -205,14 +212,21 @@ class Mind:
             fft_lines[c].set_linewidth(1)
 
         while self._streaming:
-            time.sleep(0.1)
-            for c in range(0, len(eeg_lines)):
-                eeg_lines[c].set_ydata((self._eeg_data)[c] + float(32.0 - c) * 20e-6)
-                fft_lines[c].set_ydata((self._fft_data)[c][:120] + float(32.0 - c) * 10e-4)
-            self._eeg_canvas.draw()
-            self._fft_canvas.draw()
-            self._bnd_canvas.draw()
-            self._hst_canvas.draw()
+            try:
+                time.sleep(0.1)
+                for c in range(0, len(eeg_lines)):
+                    eeg_lines[c].set_ydata(self._eeg_data[c] + float(32.0 - c) * 20e-6)
+                    fft_lines[c].set_ydata(self._fft_data[c][:120] + float(32.0 - c) * 10e-4)
+                for b in range(0, len(hst_lines)):
+                    bnd_bars[b].set_height(self._bnd_data[b])
+                    hst_lines[b].set_ydata(self._hst_data[b])
+                self._eeg_canvas.draw()
+                self._fft_canvas.draw()
+                self._bnd_canvas.draw()
+                self._hst_canvas.draw()
+            except Exception as e:
+                print(e)
+                time.sleep(0.5)
 
     def _read_data(self, samples, channels):
         """
@@ -222,6 +236,10 @@ class Mind:
 
         self._eeg_stream.connect(acquisition_delay=0.1, processing_flags="all")
         self._eeg_stream.get_data()  # reset the number of new samples after the filter is applied
+        self._eeg_data = np.zeros((32, 2500))
+        self._fft_data = np.zeros((32, 1250))
+        self._bnd_data = np.zeros(5)
+        self._hst_data = np.zeros((5, 2500))
 
         # start streaming loop
         while self._streaming:
@@ -233,15 +251,31 @@ class Mind:
         Read data into buffer a, then call a new thread
         :return:
         """
+        delta = 4.0      # delta: 0-4 Hz
+        theta = 7.0      # theta: 4-7 Hz
+        alpha = 12.0     # alpha: 8-12 Hz
+        beta = 30.0      # beta: 13-30 Hz
+        gamma = 100.0    # gamma: 30-100 Hz
+        bins = [int(delta * 2000.0/self._sampling_rate),
+                int(theta * 2000.0/self._sampling_rate),
+                int(alpha * 2000.0/self._sampling_rate),
+                int(beta * 2000.0/self._sampling_rate),
+                int(gamma * 2000.0/self._sampling_rate)]
+        widths = [delta, theta-delta, alpha-theta, beta-alpha, gamma-beta]
 
         # start streaming loop
         while self._streaming:
             try:
-                self._fft_data = np.fft.rfft(self._eeg_data, axis=1)
+                time.sleep(0.2)
+                self._fft_data = np.fft.rfft(self._eeg_data[:-1, :], axis=1)
                 self._fft_data = np.abs(self._fft_data)
+                all_channels = self._fft_data.sum(axis=0)[1:]/31.0     # sum of fft over all channels, excluding DC
+                self._bnd_data = [a[0].sum()/a[1] for a in zip(np.split(all_channels, bins)[:5], widths)]
+                self._hst_data[:, :-1] = self._hst_data[:, 1:]
+                self._hst_data[:, -1] = self._bnd_data
             except Exception as e:
                 print(e)
-
+                time.sleep(0.5)
 
 
 class SamadhiWindow(QtWidgets.QMainWindow, Ui_MainWindow):
