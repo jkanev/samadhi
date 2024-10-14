@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1500</width>
+    <width>1257</width>
     <height>900</height>
    </rect>
   </property>
@@ -33,59 +33,18 @@
        <attribute name="title">
         <string>Connections</string>
        </attribute>
-       <layout class="QGridLayout" name="gridLayout_2" columnstretch="2,1,2,2,2,1,1,0">
-        <item row="0" column="0">
-         <widget class="QLabel" name="labelName">
+       <layout class="QGridLayout" name="gridLayout_2" columnstretch="2,0,0,0,0,0,0,0,0">
+        <item row="1" column="5">
+         <widget class="QCheckBox" name="checkBoxAnalyse01">
           <property name="text">
-           <string>Free Name</string>
+           <string>Analysing</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
           </property>
          </widget>
         </item>
-        <item row="0" column="1">
-         <widget class="QLabel" name="labelConnectionStatus">
-          <property name="text">
-           <string>Connection Status</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="2">
-         <widget class="QLabel" name="labelStreamName">
-          <property name="text">
-           <string>Stream Name</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="3">
-         <widget class="QLabel" name="labelStreamId">
-          <property name="text">
-           <string>Stream ID</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="4">
-         <widget class="QLabel" name="labelHost">
-          <property name="text">
-           <string>Host</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="0">
-         <widget class="QLineEdit" name="lineEditName"/>
-        </item>
-        <item row="1" column="1">
-         <widget class="QCheckBox" name="checkBoxConnect">
-          <property name="text">
-           <string>disconnected</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="2">
-         <widget class="QComboBox" name="comboBoxStreamName"/>
-        </item>
-        <item row="1" column="3">
-         <widget class="QComboBox" name="comboBoxStreamId"/>
-        </item>
-        <item row="2" column="2">
+        <item row="3" column="4">
          <spacer name="verticalSpacer">
           <property name="orientation">
            <enum>Qt::Vertical</enum>
@@ -98,38 +57,93 @@
           </property>
          </spacer>
         </item>
-        <item row="1" column="4">
-         <widget class="QLabel" name="labelHostText">
+        <item row="0" column="2">
+         <widget class="QLabel" name="labelName">
           <property name="text">
-           <string>-</string>
+           <string>Display Name</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="2">
+         <widget class="QLineEdit" name="lineEditName01">
+          <property name="text">
+           <string>Mind One</string>
           </property>
          </widget>
         </item>
         <item row="0" column="5">
+         <widget class="QLabel" name="labelStreamId">
+          <property name="text">
+           <string>Analyse (FFT)</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="8">
+         <widget class="QLabel" name="labelStreamAnalysis">
+          <property name="text">
+           <string>Broadcast analysis stream</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="7">
          <widget class="QLabel" name="labelChannels">
           <property name="text">
-           <string>Channels</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="5">
-         <widget class="QLabel" name="labelChannelsText">
-          <property name="text">
-           <string>-</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="6">
-         <widget class="QLabel" name="labelSamplingRateText">
-          <property name="text">
-           <string>-</string>
+           <string>Display Visualisation</string>
           </property>
          </widget>
         </item>
         <item row="0" column="6">
-         <widget class="QLabel" name="labelSamplingRate">
+         <widget class="QLabel" name="labelHost">
           <property name="text">
-           <string>SamplingRate</string>
+           <string>Display Data</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="0">
+         <widget class="QLabel" name="labelStreamName">
+          <property name="text">
+           <string>Stream</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QComboBox" name="comboBoxStreamName01"/>
+        </item>
+        <item row="1" column="4">
+         <widget class="QCheckBox" name="checkBoxConnect01">
+          <property name="text">
+           <string>Click to connect</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="4">
+         <widget class="QLabel" name="labelConnectionStatus">
+          <property name="text">
+           <string>Connection Status</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="6">
+         <widget class="QCheckBox" name="checkBoxDisplay01">
+          <property name="text">
+           <string>Displaying data</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="7">
+         <widget class="QCheckBox" name="checkBoxVisualisation01">
+          <property name="text">
+           <string>Click for visualisation</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="8">
+         <widget class="QCheckBox" name="checkBoxStreamAnalysis01">
+          <property name="text">
+           <string>Click to broadcast analysis</string>
           </property>
          </widget>
         </item>

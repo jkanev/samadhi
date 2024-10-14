@@ -43,14 +43,14 @@ class Mind:
     _send = False        # whether to send data on
 
     # main mind controls
-    _lineedit_name = False
-    _parent_tabwidget = False
     _combobox_streamname = False
-    _combobox_streamid = False
+    _lineedit_name = False
     _checkbox_connect = False
-    _label_hosttext = False
-    _label_channelstext = False
-    _label_samplingratetext = False
+    _checkbox_analyse = False
+    _checkbox_display = False
+    _checkbox_visualisation = False
+    _checkbox_streamanalysis = False
+    _parent_tabwidget = False
 
     # eeg display research controls → put into new class soon
     _displaylayout = False
@@ -64,22 +64,23 @@ class Mind:
     _hst_axes = False
     _hst_canvas = False
 
-    def __init__(self, lineedit_name, combobox_streamname, combobox_streamid, checkbox_connect,
-                       label_hosttext, label_channelstext, label_samplingratetext, parent_tabwidget):
-        self._lineedit_name = lineedit_name
+    def __init__(self, combobox_streamname, lineedit_name, checkbox_connect, checkbox_analyse,
+                       checkbox_display, checkbox_visualisation, checkbox_streamanalysis, parent_tabwidget):
         self._combobox_streamname = combobox_streamname
-        self._combobox_streamid = combobox_streamid
+        self._lineedit_name = lineedit_name
         self._checkbox_connect = checkbox_connect
-        self._label_hosttext = label_hosttext
-        self._label_channelstext = label_channelstext
-        self._label_samplingratetext = label_samplingratetext
-        self._combobox_streamname.addItem("EEG")
+        self._checkbox_analyse = checkbox_analyse
+        self._checkbox_display = checkbox_display
+        self._checkbox_visualisation = checkbox_visualisation
+        self._checkbox_streamanalysis = checkbox_streamanalysis
         self._parent_tabwidget = parent_tabwidget
 
         # Fill values
         streams = resolve_stream("type", "EEG")
         for s in streams:
-            self._combobox_streamid.addItem(s.source_id())
+            identifier = "{} | {} | {} Channels | {} Hz" \
+                         "".format('EEG', s.source_id(), s.channel_count(), s.nominal_srate())
+            self._combobox_streamname.addItem(identifier)
 
         # Connect slot eeg stream
         self._checkbox_connect.clicked.connect(self.connect_eeg_stream)
@@ -99,19 +100,16 @@ class Mind:
 
         # create a new inlet to read from the stream
         for s in streams:
-            if s.source_id() == self._combobox_streamid.currentText():
+            s_name, s_id, s_channels, s_rate = self._combobox_streamname.currentText().split(' | ')
+            if s.source_id() == s_id:
 
                 # set gui info
                 channels = s.channel_count()
                 srate = s.nominal_srate()
                 samples = int(self._data_seconds * srate)
                 self._sampling_rate = srate
-                self._eeg_stream = Stream(self._data_seconds, name=self._combobox_streamname.currentText(), stype="EEG",
-                                          source_id=self._combobox_streamid.currentText())
-                self._label_hosttext.setText(s.hostname())
-                self._label_channelstext.setText("{}".format(channels))
-                self._label_samplingratetext.setText("{:0.1f}".format(srate))
-                self._checkbox_connect.setText("connected")
+                self._eeg_stream = Stream(self._data_seconds, name=s_name, stype="EEG", source_id=s_id)
+                self._checkbox_connect.setText("Connected")
 
                 # create display tab
                 self._streaming = True
@@ -157,7 +155,7 @@ class Mind:
         self._eeg_axes.set_ylim(bottom=-20e-6, top=7e-4)
         self._eeg_axes.set_xticks([])
         self._eeg_axes.set_yticks(ticks=eeg_ticks, labels=c_names)
-        self._eeg_axes.set_title('EEG over {:0.1f} Seconds'.format(self._data_seconds))
+        self._eeg_axes.set_title('{} -- EEG over {:0.1f} Seconds'.format(self._name, self._data_seconds))
 
         # first fft plot
         figure = plt.figure()
@@ -167,7 +165,7 @@ class Mind:
         self._fft_axes.set_ylim(bottom=-10e-6, top=35e-3)
         self._fft_axes.set_xticks([])
         self._fft_axes.set_yticks(ticks=fft_ticks, labels=c_names)
-        self._fft_axes.set_title('FFT Amplitude over {:0.1f} Seconds'.format(self._data_seconds))
+        self._fft_axes.set_title('Current FFT Amplitude')
 
         # bandpass history plot
         figure = plt.figure()
@@ -177,7 +175,7 @@ class Mind:
         self._hst_axes.set_ylim([0.0, 0.004])
         self._hst_axes.set_xticks([])
         self._hst_axes.set_yticks([])
-        self._hst_axes.set_title('Band History'.format(self._data_seconds))
+        self._hst_axes.set_title('{} -- Band History over 8 min 20 s'.format(self._name))
 
         # bandpass bar graph
         figure = plt.figure()
@@ -306,14 +304,14 @@ class SamadhiWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         #self.settings = QtCore.QSettings('FreeSoftware', 'Samadhi')
 
         # add one mind
-        self.add_mind(self.lineEditName, self.comboBoxStreamName, self.comboBoxStreamId, self.checkBoxConnect,
-                      self.labelHostText, self.labelChannelsText, self.labelSamplingRateText)
+        self.add_mind(self.comboBoxStreamName01, self.lineEditName01, self.checkBoxConnect01, self.checkBoxAnalyse01,
+                      self.checkBoxDisplay01, self.checkBoxVisualisation01, self.checkBoxStreamAnalysis01)
 
 
-    def add_mind(self, lineedit_name, combobox_streamname, combobox_streamid, checkbox_connect,
-                       label_hosttext, label_channelstext, label_samplingratetext):
-        self._minds.append(Mind(lineedit_name, combobox_streamname, combobox_streamid, checkbox_connect,
-                       label_hosttext, label_channelstext, label_samplingratetext, self.tabWidget))
+    def add_mind(self, combobox_streamname, lineedit_name, checkbox_connect, checkbox_analyse,
+                       checkbox_display, checkbox_visualisation, checkbox_streamanalysis):
+        self._minds.append(Mind(combobox_streamname, lineedit_name, checkbox_connect, checkbox_analyse,
+                       checkbox_display, checkbox_visualisation, checkbox_streamanalysis, self.tabWidget))
 
 class Samadhi:
 
