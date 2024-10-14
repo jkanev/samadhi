@@ -29,7 +29,7 @@ class Mind:
     _streaming = True    # whether we're streaming currently
     _data_seconds = 5.0  # how much data do we have in the _eeg_data array
     _sampling_rate = 0   # sampling rate of eeg data
-    _channels = 31       # number of channels in the data
+    _channels = 1       # number of channels in the data
     _eeg_data = False    # pointer to the buffer that has just been filled, either data_a or data_b
     _fft_data = False    # buffer containing the fft
     _bnd_data = False    # frequency band data: band frequencies
@@ -57,8 +57,10 @@ class Mind:
     _displaytab = False
     _eeg_axes = False
     _eeg_canvas = False
+    _eeg_channel_height = 30e-6
     _fft_axes = False
     _fft_canvas = False
+    _fft_channel_height = 20e-4
     _bnd_axes = False
     _bnd_canvas = False
     _hst_axes = False
@@ -104,10 +106,9 @@ class Mind:
             if s.source_id() == s_id:
 
                 # set gui info
-                channels = s.channel_count()
-                srate = s.nominal_srate()
-                samples = int(self._data_seconds * srate)
-                self._sampling_rate = srate
+                self._channels = s.channel_count()-1
+                self._sampling_rate = s.nominal_srate()
+                samples = int(self._data_seconds * self._sampling_rate)
                 self._eeg_stream = Stream(self._data_seconds, name=s_name, stype="EEG", source_id=s_id)
                 self._checkbox_connect.setText("Connected")
 
@@ -116,7 +117,7 @@ class Mind:
                 self._create_display_tab()
 
                 # start data reading thread
-                thstr = threading.Thread(target=self._read_data, args=(samples, channels))
+                thstr = threading.Thread(target=self._read_data)
                 thstr.start()
 
                 # start analysis thread
@@ -139,20 +140,20 @@ class Mind:
         self._parent_tabwidget.setTabText(self._parent_tabwidget.indexOf(self._displaytab), self._name)
 
         # channel names
-        c_names = ['Fp1', 'Fpz', 'Fp2', 'AFz', 'F7',  'F3',  'Fz', 'F4',
-                   'F8',  'FC5', 'FC1', 'FC2', 'FC6', 'T7',  'C3', 'Cz',
-                   'C4',  'T8',  'CP5', 'CP1', 'CP2', 'CP6', 'P7', 'P3',
-                   'Pz',  'P4',  'P8', 'POz', 'O1', 'Oz', 'O2']
-
-        eeg_ticks = [float(32.0 - c) * 20e-6 for c in range(0, 31)]
-        fft_ticks = [float(32.0 - c) * 10e-4 for c in range(0, 31)]
+        #c_names = ['Fp1', 'Fpz', 'Fp2', 'AFz', 'F7',  'F3',  'Fz', 'F4',
+        #           'F8',  'FC5', 'FC1', 'FC2', 'FC6', 'T7',  'C3', 'Cz',
+        #           'C4',  'T8',  'CP5', 'CP1', 'CP2', 'CP6', 'P7', 'P3',
+        #           'Pz',  'P4',  'P8', 'POz', 'O1', 'Oz', 'O2']
+        c_names = ['C{}'.format(n+1) for n in range(0, self._channels)]
+        eeg_ticks = [float(self._channels - c) * self._eeg_channel_height for c in range(0, self._channels)]
+        fft_ticks = [float(self._channels - c) * self._fft_channel_height for c in range(0, self._channels)]
 
         # first eeg plot
         figure = plt.figure()
         self._eeg_canvas = FigureCanvasQTAgg(figure)
         self._eeg_axes = figure.add_subplot(111)
         self._displaylayout.addWidget(self._eeg_canvas, 0, 0, 1, 1)
-        self._eeg_axes.set_ylim(bottom=-20e-6, top=7e-4)
+        self._eeg_axes.set_ylim(bottom=0.0, top=(self._channels + 1)*self._eeg_channel_height)
         self._eeg_axes.set_xticks([])
         self._eeg_axes.set_yticks(ticks=eeg_ticks, labels=c_names)
         self._eeg_axes.set_title('{} -- EEG over {:0.1f} Seconds'.format(self._name, self._data_seconds))
@@ -162,7 +163,7 @@ class Mind:
         self._fft_canvas = FigureCanvasQTAgg(figure)
         self._fft_axes = figure.add_subplot(111)
         self._displaylayout.addWidget(self._fft_canvas, 0, 1, 1, 1)
-        self._fft_axes.set_ylim(bottom=-10e-6, top=35e-3)
+        self._fft_axes.set_ylim(bottom=0.0, top=(self._channels + 1)*self._fft_channel_height)
         self._fft_axes.set_xticks([])
         self._fft_axes.set_yticks(ticks=fft_ticks, labels=c_names)
         self._fft_axes.set_title('Current FFT Amplitude')
@@ -204,17 +205,21 @@ class Mind:
 
         # set rainbow colours
         for c in range(0, len(eeg_lines)):
-            eeg_lines[c].set_color(color=(1-c/32.0, 0.5*c/32.0, c/32.0))
+            eeg_lines[c].set_color(color=(0.7*(1 - c/self._channels),
+                                          0.5 - abs(c/self._channels - 0.5),
+                                          0.7*c/self._channels))
             eeg_lines[c].set_linewidth(1)
-            fft_lines[c].set_color(color=(1-c/32.0, 0.5*c/32.0, c/32.0))
+            fft_lines[c].set_color(color=(0.7*(1 - c/self._channels),
+                                          0.5 - abs(c/self._channels - 0.5),
+                                          0.7*c/self._channels))
             fft_lines[c].set_linewidth(1)
 
         while self._streaming:
             try:
                 time.sleep(0.1)
                 for c in range(0, len(eeg_lines)):
-                    eeg_lines[c].set_ydata(self._eeg_data[c] + float(32.0 - c) * 20e-6)
-                    fft_lines[c].set_ydata(self._fft_data[c][:120] + float(32.0 - c) * 10e-4)
+                    eeg_lines[c].set_ydata(self._eeg_data[c] + float(self._channels - c) * self._eeg_channel_height)
+                    fft_lines[c].set_ydata(self._fft_data[c][:120] + float(self._channels - c) * self._fft_channel_height)
                 for b in range(0, len(hst_lines)):
                     bnd_bars[b].set_height(self._bnd_data[b])
                     hst_lines[b].set_ydata(self._hst_data[b])
@@ -226,7 +231,7 @@ class Mind:
                 print(e)
                 time.sleep(0.5)
 
-    def _read_data(self, samples, channels):
+    def _read_data(self):
         """
         Read data into buffer a, then call a new thread
         :return:
@@ -234,8 +239,8 @@ class Mind:
 
         self._eeg_stream.connect(acquisition_delay=0.1, processing_flags="all")
         self._eeg_stream.get_data()  # reset the number of new samples after the filter is applied
-        self._eeg_data = np.zeros((32, 2500))
-        self._fft_data = np.zeros((32, 1250))
+        self._eeg_data = np.zeros((self._channels, 2500))
+        self._fft_data = np.zeros((self._channels, 1250))
         self._bnd_data = np.zeros(5)
         self._hst_data = np.zeros((5, 2500))
 
@@ -267,7 +272,7 @@ class Mind:
                 time.sleep(0.2)
                 self._fft_data = np.fft.rfft(self._eeg_data[:-1, :], axis=1)
                 self._fft_data = np.abs(self._fft_data)
-                all_channels = self._fft_data.sum(axis=0)[1:]/31.0     # sum of fft over all channels, excluding DC
+                all_channels = self._fft_data.sum(axis=0)[1:]/self._channels     # sum of fft over all channels, excluding DC
                 self._bnd_data = [a[0].sum()/a[1] for a in zip(np.split(all_channels, bins)[:5], widths)]
                 self._hst_data[:, :-1] = self._hst_data[:, 1:]
                 self._hst_data[:, -1] = self._bnd_data
