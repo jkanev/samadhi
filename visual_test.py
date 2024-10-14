@@ -6,19 +6,20 @@ import numpy as np
 # Create sum of sine waves of different frequencies
 dt = 0.005
 t0 = np.arange(0, 5*np.pi, dt)
-f = [(abs(np.sin((1)*t0))),
-     (abs(np.sin((2)*t0))),
-     (abs(np.sin((3)*t0))),
-     (abs(np.sin((4)*t0))),
-     (abs(np.sin((5)*t0)))]
+f = [(abs(np.sin(1*t0))),
+     (abs(np.sin(2*t0))),
+     (abs(np.sin(3*t0))),
+     (abs(np.sin(4*t0))),
+     (abs(np.sin(5*t0))),
+     ((np.sin(2*t0)+1)*10.0)]
 
 # Create 10 circles of different lengths
-M = 33
+M = 20
 lines = [None] * M
 ax = None
 fig = None
 freq_start = 1.0
-freq_step = 0.007
+freq_step = 0.01
 r = [[]] * M  # the interpolated circle data, zeros for now, consisting of M*N circles s[M][1..5], all the same length
 s = [[]] * M  # the raw circle data, zeros for now, consisting of M*N circles s[M][1..5]
 t = [[]] * M  # the base to plot against, will go from 0 to 2pi, t[M]
@@ -52,6 +53,7 @@ for m in range(0,M):
         r[m][n][99] = s[m][n][0]    # close the circle
 
 first = True
+s = 0    # index into speed vector
 p = 0.0
 q = 1.0
 for f0 in np.arange(0, 1000, 0.01):
@@ -71,7 +73,7 @@ for f0 in np.arange(0, 1000, 0.01):
         ax.set_xticks([])
         ax.set_yticks([])
         ax.set_theta_zero_location("N")
-        ax.set_ylim(0.0, 30.0)
+        ax.set_ylim(0.0, 20.0)
         ax.set_facecolor('k')
         fig.set_facecolor('k')
         fig.canvas.toolbar.pack_forget()
@@ -90,7 +92,7 @@ for f0 in np.arange(0, 1000, 0.01):
         if first:
             try:
                 if len(last_data):
-                    [lines[m]] = ax.plot(t[m], p*last_data + q*data, linewidth=2.0, color=(m/M, 0.5*m/M, 1-m/M))
+                    [lines[m]] = ax.plot(t[m], p*last_data + q*data, linewidth=4.0, color=(m/M, 0.5*m/M, 1-m/M))
             except BaseException as e:
                 print("Plot exception {} for curve n={}".format(e, m))
         else:
@@ -106,7 +108,8 @@ for f0 in np.arange(0, 1000, 0.01):
         last_data = data
     plt.pause(0.001)
     first = False
-    p += 0.1
-    if p > 1.0:
-        p = 0.1
+    s += 1
+    if s > len(f[5]):
+        s = 0
+    p = f[5][s] % 1
     q = 1.0 - p
