@@ -14,8 +14,10 @@ f = [(abs(np.sin(1*t0))),
      ((np.sin(2*t0)+1)*10.0)]
 
 # Create 10 circles of different lengths
-M = 20
+M = 40
 lines = [None] * M
+ylim = 40
+thickness = 2.0
 ax = None
 fig = None
 freq_start = 1.0
@@ -73,7 +75,7 @@ for f0 in np.arange(0, 1000, 0.01):
         ax.set_xticks([])
         ax.set_yticks([])
         ax.set_theta_zero_location("N")
-        ax.set_ylim(0.0, 20.0)
+        ax.set_ylim(0.0, ylim)
         ax.set_facecolor('k')
         fig.set_facecolor('k')
         fig.canvas.toolbar.pack_forget()
@@ -92,7 +94,7 @@ for f0 in np.arange(0, 1000, 0.01):
         if first:
             try:
                 if len(last_data):
-                    [lines[m]] = ax.plot(t[m], p*last_data + q*data, linewidth=4.0, color=(m/M, 0.5*m/M, 1-m/M))
+                    [lines[m]] = ax.plot(t[m], p*last_data + q*data, linewidth=thickness, color=(m/M, 0.5*m/M, 1-m/M))
             except BaseException as e:
                 print("Plot exception {} for curve n={}".format(e, m))
         else:
