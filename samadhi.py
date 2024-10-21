@@ -43,6 +43,11 @@ class Mind:
     _eeg_stream = None   # the lsl eeg input stream inlet, if in eeg mode
     _clc_stream = None   # the lsl calculation output stream outlet, if in calculation mode
 
+    # normalisation
+    _bnd_max = []       # maximum values of bands, calculated from data d(t) by x(t+1) = max(0.99*x(t), d(t))
+    _bnd_min = []       # minimum values of bands, calculated from data d(t) by x(t+1) = min(1.01*x(t), d(t))
+    _bnd_mid = []       # the middle between max and min
+
     # state related
     _calculate = False   # whether to do data calculations on the eeg_data buffer
     _display = False     # whether to display data
