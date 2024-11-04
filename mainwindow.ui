@@ -24,27 +24,136 @@
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout">
-    <item row="0" column="0">
+    <item row="0" column="1">
      <widget class="QTabWidget" name="tabWidget">
+      <property name="currentIndex">
+       <number>-1</number>
+      </property>
+     </widget>
+    </item>
+    <item row="0" column="0">
+     <widget class="QToolBox" name="toolBox">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>400</width>
+        <height>0</height>
+       </size>
+      </property>
       <property name="currentIndex">
        <number>0</number>
       </property>
-      <widget class="QWidget" name="tabConnections">
-       <attribute name="title">
-        <string>Connections</string>
+      <widget class="QWidget" name="pageSource01">
+       <property name="geometry">
+        <rect>
+         <x>0</x>
+         <y>0</y>
+         <width>400</width>
+         <height>818</height>
+        </rect>
+       </property>
+       <attribute name="label">
+        <string>Person One</string>
        </attribute>
-       <layout class="QGridLayout" name="gridLayout_2" columnstretch="2,0,0,0,0,0,0,0,0">
-        <item row="1" column="5">
-         <widget class="QCheckBox" name="checkBoxAnalyse01">
-          <property name="text">
-           <string>Analysing</string>
+       <layout class="QGridLayout" name="gridLayout_3">
+        <item row="2" column="0">
+         <widget class="QGroupBox" name="groupBoxVisualisation">
+          <property name="title">
+           <string>Visualisation</string>
           </property>
-          <property name="checked">
-           <bool>true</bool>
-          </property>
+          <layout class="QGridLayout" name="gridLayout_6">
+           <item row="0" column="0">
+            <widget class="QCheckBox" name="checkBoxDspEegPsd">
+             <property name="text">
+              <string>EEG and Spectrum</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QCheckBox" name="checkBoxDspDancingDots">
+             <property name="text">
+              <string>Dancing Dots</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </widget>
         </item>
-        <item row="3" column="4">
+        <item row="1" column="0">
+         <widget class="QGroupBox" name="groupBoxAnalysis">
+          <property name="title">
+           <string>Analysis</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_5">
+           <item row="0" column="0">
+            <widget class="QCheckBox" name="checkBoxAnalPSD">
+             <property name="text">
+              <string>Power Spectrum</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QLabel" name="labelFrequencyBands">
+             <property name="text">
+              <string>Frequency Bands</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="0" column="0">
+         <widget class="QGroupBox" name="groupBox">
+          <property name="title">
+           <string>Data Source</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_4">
+           <item row="5" column="1">
+            <widget class="QLabel" name="labelEegStatus">
+             <property name="text">
+              <string>EEG Status</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QLineEdit" name="lineEditName01">
+             <property name="text">
+              <string/>
+             </property>
+             <property name="placeholderText">
+              <string>Name of Person</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QCheckBox" name="checkBoxConnect01">
+             <property name="text">
+              <string>Click to connect</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QComboBox" name="comboBoxStreamName01"/>
+           </item>
+           <item row="4" column="1">
+            <widget class="QLabel" name="labelLslStatus">
+             <property name="text">
+              <string>LSL Status</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="3" column="0">
          <spacer name="verticalSpacer">
           <property name="orientation">
            <enum>Qt::Vertical</enum>
@@ -57,97 +166,20 @@
           </property>
          </spacer>
         </item>
-        <item row="0" column="2">
-         <widget class="QLabel" name="labelName">
-          <property name="text">
-           <string>Display Name</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="2">
-         <widget class="QLineEdit" name="lineEditName01">
-          <property name="text">
-           <string>Mind One</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="5">
-         <widget class="QLabel" name="labelStreamId">
-          <property name="text">
-           <string>Analyse (FFT)</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="8">
-         <widget class="QLabel" name="labelStreamAnalysis">
-          <property name="text">
-           <string>Broadcast analysis stream</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="7">
-         <widget class="QLabel" name="labelChannels">
-          <property name="text">
-           <string>Display Visualisation</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="6">
-         <widget class="QLabel" name="labelHost">
-          <property name="text">
-           <string>Display Data</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="0">
-         <widget class="QLabel" name="labelStreamName">
-          <property name="text">
-           <string>Stream</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="0">
-         <widget class="QComboBox" name="comboBoxStreamName01"/>
-        </item>
-        <item row="1" column="4">
-         <widget class="QCheckBox" name="checkBoxConnect01">
-          <property name="text">
-           <string>Click to connect</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="4">
-         <widget class="QLabel" name="labelConnectionStatus">
-          <property name="text">
-           <string>Connection Status</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="6">
-         <widget class="QCheckBox" name="checkBoxDisplay01">
-          <property name="text">
-           <string>Displaying data</string>
-          </property>
-          <property name="checked">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="7">
-         <widget class="QCheckBox" name="checkBoxVisualisation01">
-          <property name="text">
-           <string>Click for visualisation</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="8">
-         <widget class="QCheckBox" name="checkBoxStreamAnalysis01">
-          <property name="text">
-           <string>Click to broadcast analysis</string>
-          </property>
-         </widget>
-        </item>
        </layout>
+      </widget>
+      <widget class="QWidget" name="page_2">
+       <property name="geometry">
+        <rect>
+         <x>0</x>
+         <y>0</y>
+         <width>400</width>
+         <height>818</height>
+        </rect>
+       </property>
+       <attribute name="label">
+        <string>Person Two</string>
+       </attribute>
       </widget>
      </widget>
     </item>

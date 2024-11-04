@@ -27,7 +27,7 @@ class Mind:
     _name = ""           # the person's name
 
     # data streaming related
-    _streaming = True    # whether we're streaming currently
+    _streaming = False   # whether we're streaming currently
     _data_seconds = 5.0  # how much data do we have in the _eeg_data array
     _sampling_rate = 0   # sampling rate of eeg data
     _samples = 0         # seconds times sampling rate
@@ -48,20 +48,19 @@ class Mind:
     _bnd_min = []       # minimum values of bands, calculated from data d(t) by x(t+1) = min(1.01*x(t), d(t))
     _bnd_mid = []       # the middle between max and min
 
-    # state related
-    _calculate = False   # whether to do data calculations on the eeg_data buffer
-    _display = False     # whether to display data
-    _send = False        # whether to send data on
-
     # main mind controls
     _combobox_streamname = False
     _lineedit_name = False
-    _checkbox_connect = False
-    _checkbox_analyse = False
-    _checkbox_display = False
-    _checkbox_visualisation = False
-    _checkbox_streamanalysis = False
+    _checkbox_connect_lsl = False
+    _checkbox_analyse_psd = False
+    _checkbox_display_eegpsd = False
+    _checkbox_visualisation_ddots = False
     _parent_tabwidget = False
+
+    # info labels
+    _bnd_info = False
+    _lsl_info = False
+    _eeg_info = False
 
     # eeg display research controls → put into new class soon
     _displaylayout = False
@@ -79,15 +78,19 @@ class Mind:
     _hst_canvas = False
     _hst_height = 110e-4
 
-    def __init__(self, combobox_streamname, lineedit_name, checkbox_connect, checkbox_analyse,
-                       checkbox_display, checkbox_visualisation, checkbox_streamanalysis, parent_tabwidget):
+    def __init__(self, combobox_streamname, lineedit_name, checkbox_connect, checkbox_analyse_psd,
+                       checkbox_display_eegpsd, checkbox_visualisation_ddots,
+                       lsl_info, eeg_info, bnd_info,
+                       parent_tabwidget):
         self._combobox_streamname = combobox_streamname
         self._lineedit_name = lineedit_name
-        self._checkbox_connect = checkbox_connect
-        self._checkbox_analyse = checkbox_analyse
-        self._checkbox_display = checkbox_display
-        self._checkbox_visualisation = checkbox_visualisation
-        self._checkbox_streamanalysis = checkbox_streamanalysis
+        self._checkbox_connect_lsl = checkbox_connect
+        self._checkbox_analyse_psd = checkbox_analyse_psd
+        self._checkbox_display_eegpsd = checkbox_display_eegpsd
+        self._checkbox_visualisation_ddots = checkbox_visualisation_ddots
+        self._lsl_info = lsl_info
+        self._eeg_info = eeg_info
+        self._bnd_info = bnd_info
         self._parent_tabwidget = parent_tabwidget
 
         # Fill values
@@ -98,7 +101,30 @@ class Mind:
             self._combobox_streamname.addItem(identifier)
 
         # Connect slot eeg stream
-        self._checkbox_connect.clicked.connect(self.connect_eeg_stream)
+        self._checkbox_connect_lsl.clicked.connect(self.connect_eeg_stream)
+
+    def _reset(self):
+        """
+        Resets the values after a stream disconnect, also removes the tab
+        :return: void
+        """
+        self._parent_tabwidget.removeTab(self._parent_tabwidget.indexOf(self._displaytab))
+        self._streaming = False  # whether we're streaming currently
+        self._data_seconds = 5.0  # how much data do we have in the _eeg_data array
+        self._sampling_rate = 0  # sampling rate of eeg data
+        self._samples = 0  # seconds times sampling rate
+        self._fft_resolution = 0  # resolution (distance of one FFT bin to the next)
+        self._channels = 1  # number of channels in the data
+        self._history_length = 600.0  # length of history buffer in seconds
+        self._eeg_data = []  # pointer to the buffer that has just been filled, either data_a or data_b
+        self._eeg_times = []  # buffer containing eeg time stamps
+        self._fft_data = []  # buffer containing the fft
+        self._fft_freqs = []  # buffer containing fft frequencies
+        self._bnd_data = []  # frequency band data: band frequencies
+        self._hst_data = []  # frequency band data: ring buffer that is constantly rooled
+        self._eeg_stream = None  # the lsl eeg input stream inlet, if in eeg mode
+        self._clc_stream = None  # the lsl calculation output stream outlet, if in calculation mode
+        self._checkbox_connect_lsl.setText("Click to connect")
 
     def connect_eeg_stream(self):
         """
@@ -106,41 +132,49 @@ class Mind:
         Add the stream 'name' to the array of streams and starts pulling data
         :return: void
         """
-        print("connecting EEG stream...")
-        self._name = self._lineedit_name.text()
 
-        # first resolve an EEG stream on the lab network
-        print("looking for an EEG stream...")
-        streams = resolve_streams()
+        # if we're connecting
+        if self._checkbox_connect_lsl.isChecked():
 
-        # create a new inlet to read from the stream
-        for s in streams:
-            s_name, s_id, s_channels, s_rate = self._combobox_streamname.currentText().split(' | ')
-            if s.source_id == s_id:
+            self._name = self._lineedit_name.text()
 
-                # set gui info
-                self._channels = s.n_channels
-                self._sampling_rate = s.sfreq
-                self._samples = int(self._data_seconds * self._sampling_rate)
-                self._eeg_stream = Stream(self._data_seconds, name=s_name, stype=s.stype, source_id=s.source_id)
-                self._checkbox_connect.setText("Connected")
+            # first resolve an EEG stream on the lab network
+            print("Finding an LSL streams.")
+            streams = resolve_streams()
 
-                # create display tab
-                self._streaming = True
-                self._create_display_tab()
+            # create a new inlet to read from the stream
+            for s in streams:
+                s_name, s_id, s_channels, s_rate = self._combobox_streamname.currentText().split(' | ')
+                if s.source_id == s_id:
 
-                # start data reading thread
-                thstr = threading.Thread(target=self._read_data)
-                thstr.start()
+                    # set gui info
+                    self._channels = s.n_channels
+                    self._sampling_rate = s.sfreq
+                    self._samples = int(self._data_seconds * self._sampling_rate)
+                    self._eeg_stream = Stream(self._data_seconds, name=s_name, stype=s.stype, source_id=s.source_id)
+                    self._checkbox_connect_lsl.setText("Connected")
+                    print("Connected to LSL stream")
 
-                # start analysis thread
-                thanal = threading.Thread(target=self._analyse_data)
-                thanal.start()
+                    # create display tab
+                    self._streaming = True
+                    self._create_display_tab()
 
-                # start display thread
-                time.sleep(1)
-                thdsp = threading.Thread(target=self._display_continuous)
-                thdsp.start()
+                    # start data reading thread
+                    thstr = threading.Thread(target=self._read_lsl)
+                    thstr.start()
+
+                    # start analysis thread
+                    thanal = threading.Thread(target=self._analyse_psd)
+                    thanal.start()
+
+                    # start display thread
+                    time.sleep(1)
+                    thdsp = threading.Thread(target=self._display_eeg_psd)
+                    thdsp.start()
+
+        # if we're disconnecting
+        else:
+            self._reset()
 
     def _create_display_tab(self):
 
@@ -169,7 +203,7 @@ class Mind:
         self._eeg_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names)
         self._eeg_axes.set_title('{} -- EEG over {:0.1f} Seconds'.format(self._name, self._data_seconds))
 
-        # first fft plot
+        # first psd plot
         figure = plt.figure()
         self._fft_canvas = FigureCanvasQTAgg(figure)
         self._fft_axes = figure.add_subplot(111)
@@ -177,7 +211,7 @@ class Mind:
         self._fft_axes.set_ylim(bottom=0.0, top=self._channels + 2)
         self._fft_axes.set_xscale('log')
         self._fft_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names)
-        self._fft_axes.set_title('Current FFT Amplitude')
+        self._fft_axes.set_title('Current PSD')
 
         # bandpass history plot
         figure = plt.figure()
@@ -187,7 +221,7 @@ class Mind:
         self._hst_axes.set_ylim([0.0, 1.1])
         self._hst_axes.set_xticks([])
         self._hst_axes.set_yticks([])
-        self._hst_axes.set_title('{} -- Band History over {} minutes'.format(self._name, self._history_length/60.0))
+        self._hst_axes.set_title('{} -- PSD History over {} minutes'.format(self._name, self._history_length/60.0))
 
         # bandpass bar graph
         figure = plt.figure()
@@ -204,7 +238,7 @@ class Mind:
         self._displaylayout.setRowStretch(0, 2)
         self._displaylayout.setRowStretch(1, 1)
 
-    def _display_continuous(self):
+    def _display_eeg_psd(self):
 
         while not len(self._eeg_data)\
                 or not len(self._fft_data)\
@@ -237,11 +271,12 @@ class Mind:
         while self._streaming:
             try:
                 time.sleep(0.1)
-                self._eeg_channel_height = 0.5*(self._eeg_data.max() - self._eeg_data.min())
+                eeg_max = self._eeg_data.max()
+                eeg_min = self._eeg_data.min()
+                self._eeg_channel_height = 0.5*(eeg_max - eeg_min)
                 self._fft_channel_height = 0.5*(self._fft_data.max() - self._fft_data.min())
-                hst_height = self._hst_data.max() - self._hst_data.min()
+                hst_height = self._hst_data.max()
                 hst_height = hst_height or 1.0
-                print(hst_height)
                 for c in range(0, len(eeg_lines)):
                     eeg_lines[c].set_ydata(self._eeg_data[c]/self._eeg_channel_height + float(self._channels - c))
                     fft_lines[c].set_ydata(self._fft_data[c]/self._fft_channel_height + float(self._channels - c))
@@ -252,11 +287,12 @@ class Mind:
                 self._fft_canvas.draw()
                 self._bnd_canvas.draw()
                 self._hst_canvas.draw()
+                self._eeg_info.setText("{:.1f} µV - {:.1f} µV".format(eeg_min*1e6, eeg_max*1e6))
             except Exception as e:
                 print(e)
                 time.sleep(0.5)
 
-    def _read_data(self):
+    def _read_lsl(self):
         """
         Read data into buffer a, then call a new thread
         :return:
@@ -274,8 +310,9 @@ class Mind:
         while self._streaming:
             time.sleep(0.1)
             self._eeg_data, ts = self._eeg_stream.get_data()
+            self._lsl_info.setText("LSL Time {:0.1f}".format(ts[-1]))
 
-    def _analyse_data(self):
+    def _analyse_psd(self):
         """
         Read data into buffer a, then call a new thread
         :return:
@@ -298,11 +335,14 @@ class Mind:
             try:
                 time.sleep(0.2)
                 self._fft_data = np.fft.rfft(self._eeg_data, axis=1)
-                self._fft_data = np.abs(self._fft_data)
+                self._fft_data = np.abs(self._fft_data)**2
                 all_channels = self._fft_data.sum(axis=0)[1:]/self._channels     # sum of fft over all channels, excluding DC
                 self._bnd_data = [a[0].sum()/a[1] for a in zip(np.split(all_channels, bins)[:5], widths)]
                 self._hst_data[:, :-1] = self._hst_data[:, 1:]
                 self._hst_data[:, -1] = self._bnd_data
+                self._bnd_info.setText("{:0.1f} | {:0.1f} | {:0.1f} | {:0.1f} | {:0.1f}".format(
+                    self._bnd_data[0]*1e6, self._bnd_data[1]*1e6, self._bnd_data[2]*1e6, self._bnd_data[3]*1e6,
+                    self._bnd_data[4]*1e6))
             except Exception as e:
                 print(e)
                 time.sleep(0.5)
@@ -336,14 +376,19 @@ class SamadhiWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         #self.settings = QtCore.QSettings('FreeSoftware', 'Samadhi')
 
         # add one mind
-        self.add_mind(self.comboBoxStreamName01, self.lineEditName01, self.checkBoxConnect01, self.checkBoxAnalyse01,
-                      self.checkBoxDisplay01, self.checkBoxVisualisation01, self.checkBoxStreamAnalysis01)
+        self.add_mind(self.comboBoxStreamName01, self.lineEditName01, self.checkBoxConnect01,
+                      self.checkBoxAnalPSD, self.checkBoxDspEegPsd, self.checkBoxDspDancingDots,
+                      self.labelLslStatus, self.labelEegStatus, self.labelFrequencyBands)
 
 
-    def add_mind(self, combobox_streamname, lineedit_name, checkbox_connect, checkbox_analyse,
-                       checkbox_display, checkbox_visualisation, checkbox_streamanalysis):
-        self._minds.append(Mind(combobox_streamname, lineedit_name, checkbox_connect, checkbox_analyse,
-                       checkbox_display, checkbox_visualisation, checkbox_streamanalysis, self.tabWidget))
+    def add_mind(self, combobox_streamname, lineedit_name, checkbox_connect,
+                       checkbox_analyse,
+                       checkbox_display_eegpsd, checkbox_display_ddots,
+                       lsl_info, eeg_info, bnd_info):
+        self._minds.append(Mind(combobox_streamname, lineedit_name, checkbox_connect,
+                                checkbox_analyse,
+                                checkbox_display_eegpsd, checkbox_display_ddots,
+                                lsl_info, eeg_info, bnd_info, self.tabWidget))
 
 class Samadhi:
 
