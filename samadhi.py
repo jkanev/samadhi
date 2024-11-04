@@ -101,32 +101,31 @@ class Mind:
             self._combobox_streamname.addItem(identifier)
 
         # Connect slot eeg stream
-        self._checkbox_connect_lsl.clicked.connect(self.connect_eeg_stream)
+        self._checkbox_connect_lsl.clicked.connect(self._connect_eeg_stream)
+        self._checkbox_display_eegpsd.clicked.connect(self._create_eegpsd_display_tab)
 
     def _reset(self):
         """
         Resets the values after a stream disconnect, also removes the tab
         :return: void
         """
-        self._parent_tabwidget.removeTab(self._parent_tabwidget.indexOf(self._displaytab))
-        self._streaming = False  # whether we're streaming currently
-        self._data_seconds = 5.0  # how much data do we have in the _eeg_data array
+        self._streaming = False
         self._sampling_rate = 0  # sampling rate of eeg data
-        self._samples = 0  # seconds times sampling rate
-        self._fft_resolution = 0  # resolution (distance of one FFT bin to the next)
-        self._channels = 1  # number of channels in the data
-        self._history_length = 600.0  # length of history buffer in seconds
-        self._eeg_data = []  # pointer to the buffer that has just been filled, either data_a or data_b
-        self._eeg_times = []  # buffer containing eeg time stamps
-        self._fft_data = []  # buffer containing the fft
-        self._fft_freqs = []  # buffer containing fft frequencies
-        self._bnd_data = []  # frequency band data: band frequencies
-        self._hst_data = []  # frequency band data: ring buffer that is constantly rooled
-        self._eeg_stream = None  # the lsl eeg input stream inlet, if in eeg mode
-        self._clc_stream = None  # the lsl calculation output stream outlet, if in calculation mode
+        self._samples = 0
+        self._fft_resolution = 0
+        self._channels = 1
+        self._history_length = 600.0
+        self._eeg_data = []
+        self._eeg_times = []
+        self._fft_data = []
+        self._fft_freqs = []
+        self._bnd_data = []
+        self._hst_data = []
+        self._eeg_stream = None
+        self._clc_stream = None
         self._checkbox_connect_lsl.setText("Click to connect")
 
-    def connect_eeg_stream(self):
+    def _connect_eeg_stream(self):
         """
         Connects a single EEG stream
         Add the stream 'name' to the array of streams and starts pulling data
@@ -157,7 +156,6 @@ class Mind:
 
                     # create display tab
                     self._streaming = True
-                    self._create_display_tab()
 
                     # start data reading thread
                     thstr = threading.Thread(target=self._read_lsl)
@@ -167,76 +165,87 @@ class Mind:
                     thanal = threading.Thread(target=self._analyse_psd)
                     thanal.start()
 
-                    # start display thread
-                    time.sleep(1)
-                    thdsp = threading.Thread(target=self._display_eeg_psd)
-                    thdsp.start()
+                    # enable checkbox
+                    self._checkbox_display_eegpsd.setEnabled(True)
 
         # if we're disconnecting
         else:
             self._reset()
+            self._checkbox_display_eegpsd.setEnabled(False)
+            self._checkbox_display_eegpsd.setChecked(False)
+            self._create_eegpsd_display_tab()
 
-    def _create_display_tab(self):
+    def _create_eegpsd_display_tab(self):
 
-        # create widgets
-        self._displaytab = QtWidgets.QWidget()
-        self._displaylayout = QtWidgets.QGridLayout(self._displaytab)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Policy.Maximum, QtWidgets.QSizePolicy.Policy.Maximum)
-        self._displaytab.setSizePolicy(sizePolicy)
-        self._parent_tabwidget.addTab(self._displaytab, "")
-        self._parent_tabwidget.setTabText(self._parent_tabwidget.indexOf(self._displaytab), self._name)
+        if self._checkbox_display_eegpsd.isChecked():
 
-        # channel names
-        #c_names = ['Fp1', 'Fpz', 'Fp2', 'AFz', 'F7',  'F3',  'Fz', 'F4',
-        #           'F8',  'FC5', 'FC1', 'FC2', 'FC6', 'T7',  'C3', 'Cz',
-        #           'C4',  'T8',  'CP5', 'CP1', 'CP2', 'CP6', 'P7', 'P3',
-        #           'Pz',  'P4',  'P8', 'POz', 'O1', 'Oz', 'O2']
-        c_names = ['C{}'.format(n+1) for n in range(0, self._channels)]
+            # create widgets
+            self._displaytab = QtWidgets.QWidget()
+            self._displaylayout = QtWidgets.QGridLayout(self._displaytab)
+            sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Policy.Maximum, QtWidgets.QSizePolicy.Policy.Maximum)
+            self._displaytab.setSizePolicy(sizePolicy)
+            self._parent_tabwidget.addTab(self._displaytab, "")
+            self._parent_tabwidget.setTabText(self._parent_tabwidget.indexOf(self._displaytab), self._name)
 
-        # first eeg plot
-        figure = plt.figure()
-        self._eeg_canvas = FigureCanvasQTAgg(figure)
-        self._eeg_axes = figure.add_subplot(111)
-        self._displaylayout.addWidget(self._eeg_canvas, 0, 0, 1, 1)
-        self._eeg_axes.set_ylim(bottom=0.0, top=self._channels + 2)
-        self._eeg_axes.set_xticks([])
-        self._eeg_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names)
-        self._eeg_axes.set_title('{} -- EEG over {:0.1f} Seconds'.format(self._name, self._data_seconds))
+            # channel names
+            #c_names = ['Fp1', 'Fpz', 'Fp2', 'AFz', 'F7',  'F3',  'Fz', 'F4',
+            #           'F8',  'FC5', 'FC1', 'FC2', 'FC6', 'T7',  'C3', 'Cz',
+            #           'C4',  'T8',  'CP5', 'CP1', 'CP2', 'CP6', 'P7', 'P3',
+            #           'Pz',  'P4',  'P8', 'POz', 'O1', 'Oz', 'O2']
+            c_names = ['C{}'.format(n+1) for n in range(0, self._channels)]
 
-        # first psd plot
-        figure = plt.figure()
-        self._fft_canvas = FigureCanvasQTAgg(figure)
-        self._fft_axes = figure.add_subplot(111)
-        self._displaylayout.addWidget(self._fft_canvas, 0, 1, 1, 1)
-        self._fft_axes.set_ylim(bottom=0.0, top=self._channels + 2)
-        self._fft_axes.set_xscale('log')
-        self._fft_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names)
-        self._fft_axes.set_title('Current PSD')
+            # first eeg plot
+            figure = plt.figure()
+            self._eeg_canvas = FigureCanvasQTAgg(figure)
+            self._eeg_axes = figure.add_subplot(111)
+            self._displaylayout.addWidget(self._eeg_canvas, 0, 0, 1, 1)
+            self._eeg_axes.set_ylim(bottom=0.0, top=self._channels + 2)
+            self._eeg_axes.set_xticks([])
+            self._eeg_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names)
+            self._eeg_axes.set_title('{} -- EEG over {:0.1f} Seconds'.format(self._name, self._data_seconds))
 
-        # bandpass history plot
-        figure = plt.figure()
-        self._hst_canvas = FigureCanvasQTAgg(figure)
-        self._hst_axes = figure.add_subplot(111)
-        self._displaylayout.addWidget(self._hst_canvas, 1, 0, 1, 1)
-        self._hst_axes.set_ylim([0.0, 1.1])
-        self._hst_axes.set_xticks([])
-        self._hst_axes.set_yticks([])
-        self._hst_axes.set_title('{} -- PSD History over {} minutes'.format(self._name, self._history_length/60.0))
+            # first psd plot
+            figure = plt.figure()
+            self._fft_canvas = FigureCanvasQTAgg(figure)
+            self._fft_axes = figure.add_subplot(111)
+            self._displaylayout.addWidget(self._fft_canvas, 0, 1, 1, 1)
+            self._fft_axes.set_ylim(bottom=0.0, top=self._channels + 2)
+            self._fft_axes.set_xscale('log')
+            self._fft_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names)
+            self._fft_axes.set_title('Current PSD')
 
-        # bandpass bar graph
-        figure = plt.figure()
-        self._bnd_canvas = FigureCanvasQTAgg(figure)
-        self._bnd_axes = figure.add_subplot(111)
-        self._displaylayout.addWidget(self._bnd_canvas, 1, 1, 1, 1)
-        self._bnd_axes.set_ylim([0.0, 1.1])
-        self._bnd_axes.set_xticks([1, 2, 3, 4, 5], ['δ', 'θ', 'α', 'β', 'γ'])
-        self._bnd_axes.set_yticks([])
-        self._bnd_axes.set_title('Frequency Band Average'.format(self._data_seconds))
+            # bandpass history plot
+            figure = plt.figure()
+            self._hst_canvas = FigureCanvasQTAgg(figure)
+            self._hst_axes = figure.add_subplot(111)
+            self._displaylayout.addWidget(self._hst_canvas, 1, 0, 1, 1)
+            self._hst_axes.set_ylim([0.0, 1.1])
+            self._hst_axes.set_xticks([])
+            self._hst_axes.set_yticks([])
+            self._hst_axes.set_title('{} -- PSD History over {} minutes'.format(self._name, self._history_length/60.0))
 
-        self._displaylayout.setColumnStretch(0, 3)
-        self._displaylayout.setColumnStretch(1, 1)
-        self._displaylayout.setRowStretch(0, 2)
-        self._displaylayout.setRowStretch(1, 1)
+            # bandpass bar graph
+            figure = plt.figure()
+            self._bnd_canvas = FigureCanvasQTAgg(figure)
+            self._bnd_axes = figure.add_subplot(111)
+            self._displaylayout.addWidget(self._bnd_canvas, 1, 1, 1, 1)
+            self._bnd_axes.set_ylim([0.0, 1.1])
+            self._bnd_axes.set_xticks([1, 2, 3, 4, 5], ['δ', 'θ', 'α', 'β', 'γ'])
+            self._bnd_axes.set_yticks([])
+            self._bnd_axes.set_title('Frequency Band Power'.format(self._data_seconds))
+
+            self._displaylayout.setColumnStretch(0, 3)
+            self._displaylayout.setColumnStretch(1, 1)
+            self._displaylayout.setRowStretch(0, 2)
+            self._displaylayout.setRowStretch(1, 1)
+
+            # start display thread
+            time.sleep(1)
+            thdsp = threading.Thread(target=self._display_eeg_psd)
+            thdsp.start()
+
+        else:
+            self._parent_tabwidget.removeTab(self._parent_tabwidget.indexOf(self._displaytab))
 
     def _display_eeg_psd(self):
 
@@ -268,9 +277,9 @@ class Mind:
             bnd_bars[n].set(color=colour)
             hst_lines[n].set_color(color=colour)
 
+        self._eeg_info.setEnabled(True)
         while self._streaming:
             try:
-                time.sleep(0.1)
                 eeg_max = self._eeg_data.max()
                 eeg_min = self._eeg_data.min()
                 self._eeg_channel_height = 0.5*(eeg_max - eeg_min)
@@ -291,6 +300,11 @@ class Mind:
             except Exception as e:
                 print(e)
                 time.sleep(0.5)
+            time.sleep(0.1)
+            print('d', end="")
+
+        # finished
+        self._eeg_info.setEnabled(False)
 
     def _read_lsl(self):
         """
@@ -307,10 +321,15 @@ class Mind:
         self._hst_data = np.zeros((5, int(self._history_length * 5.0)))  # history length * update rate of the analysis thread
 
         # start streaming loop
+        self._lsl_info.setEnabled(True)
         while self._streaming:
-            time.sleep(0.1)
             self._eeg_data, ts = self._eeg_stream.get_data()
             self._lsl_info.setText("LSL Time {:0.1f}".format(ts[-1]))
+            time.sleep(0.1)
+            print('r', end="")
+
+        # finished
+        self._lsl_info.setEnabled(False)
 
     def _analyse_psd(self):
         """
@@ -322,6 +341,7 @@ class Mind:
             time.sleep(0.5)
 
         self._fft_freqs = np.fft.rfftfreq(self._samples, d=1.0 / self._sampling_rate, device=None)
+        self._fft_resolution = self._fft_freqs[1]
         delta = abs(self._fft_freqs - 4.0).argmin()      # delta: 0-4 Hz
         theta = abs(self._fft_freqs - 7.0).argmin()      # theta: 4-7 Hz
         alpha = abs(self._fft_freqs - 12.0).argmin()     # alpha: 8-12 Hz
@@ -330,22 +350,36 @@ class Mind:
         bins = [delta, theta, alpha, beta, gamma]
         widths = [delta, theta-delta, alpha-theta, beta-alpha, gamma-beta]
 
+        is_relative = True
+
         # start streaming loop
+        self._bnd_info.setEnabled(True)
         while self._streaming:
             try:
-                time.sleep(0.2)
                 self._fft_data = np.fft.rfft(self._eeg_data, axis=1)
                 self._fft_data = np.abs(self._fft_data)**2
                 all_channels = self._fft_data.sum(axis=0)[1:]/self._channels     # sum of fft over all channels, excluding DC
-                self._bnd_data = [a[0].sum()/a[1] for a in zip(np.split(all_channels, bins)[:5], widths)]
+                self._bnd_data = np.array([a[0].sum()*self._fft_resolution for a in np.split(all_channels, bins)[:5]])
+
+                if is_relative:
+                    self._bnd_data = self._bnd_data / self._bnd_data.sum() # relative power
                 self._hst_data[:, :-1] = self._hst_data[:, 1:]
                 self._hst_data[:, -1] = self._bnd_data
-                self._bnd_info.setText("{:0.1f} | {:0.1f} | {:0.1f} | {:0.1f} | {:0.1f}".format(
-                    self._bnd_data[0]*1e6, self._bnd_data[1]*1e6, self._bnd_data[2]*1e6, self._bnd_data[3]*1e6,
-                    self._bnd_data[4]*1e6))
+                if is_relative:
+                    self._bnd_info.setText("{:0.1f} | {:0.1f} | {:0.1f} | {:0.1f} | {:0.1f}".format(*self._bnd_data))
+                else:
+                    self._bnd_info.setText("{:0.1f} | {:0.1f} | {:0.1f} | {:0.1f} | {:0.1f}".format(
+                        self._bnd_data[0] * 1e6, self._bnd_data[1] * 1e6, self._bnd_data[2] * 1e6,
+                        self._bnd_data[3] * 1e6,
+                        self._bnd_data[4] * 1e6))
             except Exception as e:
                 print(e)
                 time.sleep(0.5)
+            time.sleep(0.2)
+            print('a', end="")
+
+        # finished
+        self._bnd_info.setEnabled(False)
 
 
 class SamadhiWindow(QtWidgets.QMainWindow, Ui_MainWindow):
