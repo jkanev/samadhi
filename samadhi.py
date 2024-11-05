@@ -28,18 +28,22 @@ class Mind:
 
     # data streaming related
     _streaming = False   # whether we're streaming currently
-    _data_seconds = 5.0  # how much data do we have in the _eeg_data array
+    _data_seconds = 10.0  # how much data do we have in the _eeg_data array
     _sampling_rate = 0   # sampling rate of eeg data
     _samples = 0         # seconds times sampling rate
     _fft_resolution = 0  # resolution (distance of one FFT bin to the next)
     _channels = 1        # number of channels in the data
     _history_length = 600.0   # length of history buffer in seconds
     _eeg_data = []       # pointer to the buffer that has just been filled, either data_a or data_b
+    _eeg_lock = threading.Lock()    # lock for eeg data
     _eeg_times = []      # buffer containing eeg time stamps
     _fft_data = []       # buffer containing the fft
+    _fft_lock = threading.Lock()    # lock for fft data
     _fft_freqs = []      # buffer containing fft frequencies
     _bnd_data = []       # frequency band data: band frequencies
+    _bnd_lock = threading.Lock()    # lock for bnd data
     _hst_data = []       # frequency band data: ring buffer that is constantly rooled
+    _hst_lock = threading.Lock()    # lock for hst data
     _eeg_stream = None   # the lsl eeg input stream inlet, if in eeg mode
     _clc_stream = None   # the lsl calculation output stream outlet, if in calculation mode
 
@@ -116,11 +120,15 @@ class Mind:
         self._channels = 1
         self._history_length = 600.0
         self._eeg_data = []
+        self._eeg_lock.release()
         self._eeg_times = []
         self._fft_data = []
+        self._fft_lock.release()
         self._fft_freqs = []
         self._bnd_data = []
+        self._bnd_lock.release()
         self._hst_data = []
+        self._hst_lock.release()
         self._eeg_stream = None
         self._clc_stream = None
         self._checkbox_connect_lsl.setText("Click to connect")
@@ -219,9 +227,9 @@ class Mind:
             self._hst_canvas = FigureCanvasQTAgg(figure)
             self._hst_axes = figure.add_subplot(111)
             self._displaylayout.addWidget(self._hst_canvas, 1, 0, 1, 1)
-            self._hst_axes.set_ylim([0.0, 1.1])
+            self._hst_axes.set_ylim([-0.1, 5.1])
             self._hst_axes.set_xticks([])
-            self._hst_axes.set_yticks([])
+            self._hst_axes.set_yticks([0, 1, 2, 3, 4], ['δ', 'θ', 'α', 'β', 'γ'])
             self._hst_axes.set_title('{} -- PSD History over {} minutes'.format(self._name, self._history_length/60.0))
 
             # bandpass bar graph
@@ -266,9 +274,9 @@ class Mind:
             a = c/(self._channels-1.0)
             colour = (0.7*(1 - a), 0.5*(1.0 - 2.0*abs(a - 0.5)), 0.7*a)
             eeg_lines[c].set_color(color=colour)
-            eeg_lines[c].set_linewidth(1)
+            eeg_lines[c].set_linewidth(0.4)
             fft_lines[c].set_color(color=colour)
-            fft_lines[c].set_linewidth(1)
+            fft_lines[c].set_linewidth(0.4)
 
         # set rainbow colours for frequency bands
         for n in range(0, 5):
@@ -276,32 +284,38 @@ class Mind:
             colour = (0.7*(1 - a), 0.5*(1.0 - 2.0*abs(a - 0.5)), 0.7*a)
             bnd_bars[n].set(color=colour)
             hst_lines[n].set_color(color=colour)
+            hst_lines[n].set_linewidth(0.5)
 
         self._eeg_info.setEnabled(True)
         while self._streaming:
             try:
-                eeg_max = self._eeg_data.max()
-                eeg_min = self._eeg_data.min()
+                with self._eeg_lock:
+                    eeg_max = self._eeg_data.max()
+                    eeg_min = self._eeg_data.min()
+                    for c in range(0, len(eeg_lines)):
+                        eeg_lines[c].set_ydata(self._eeg_data[c]/self._eeg_channel_height + float(self._channels - c))
                 self._eeg_channel_height = 0.5*(eeg_max - eeg_min)
-                self._fft_channel_height = 0.5*(self._fft_data.max() - self._fft_data.min())
-                hst_height = self._hst_data.max()
-                hst_height = hst_height or 1.0
-                for c in range(0, len(eeg_lines)):
-                    eeg_lines[c].set_ydata(self._eeg_data[c]/self._eeg_channel_height + float(self._channels - c))
-                    fft_lines[c].set_ydata(self._fft_data[c]/self._fft_channel_height + float(self._channels - c))
-                for b in range(0, len(hst_lines)):
-                    bnd_bars[b].set_height(self._bnd_data[b] / hst_height)
-                    hst_lines[b].set_ydata(self._hst_data[b] / hst_height)
+                with self._fft_lock:
+                    self._fft_channel_height = 0.5*(self._fft_data.max() - self._fft_data.min())
+                    for c in range(0, len(fft_lines)):
+                        fft_lines[c].set_ydata(self._fft_data[c]/self._fft_channel_height + float(self._channels - c))
+                with self._hst_lock:
+                    hst_height = self._hst_data.max()
+                    hst_height = hst_height or 1.0
+                    for b in range(0, len(hst_lines)):
+                        hst_lines[b].set_ydata(self._hst_data[b] / hst_height + float(b))
+                with self._bnd_lock:
+                    for b in range(0, len(bnd_bars)):
+                        bnd_bars[b].set_height(self._bnd_data[b] / hst_height)
                 self._eeg_canvas.draw()
                 self._fft_canvas.draw()
                 self._bnd_canvas.draw()
                 self._hst_canvas.draw()
-                self._eeg_info.setText("{:.1f} µV - {:.1f} µV".format(eeg_min*1e6, eeg_max*1e6))
+                #self._eeg_info.setText("{:.1f} µV - {:.1f} µV".format(eeg_min*1e6, eeg_max*1e6))
+                print('d', end="")
             except Exception as e:
                 print(e)
                 time.sleep(0.5)
-            time.sleep(0.1)
-            print('d', end="")
 
         # finished
         self._eeg_info.setEnabled(False)
@@ -315,18 +329,23 @@ class Mind:
         # init data buffers
         self._eeg_stream.connect(acquisition_delay=0.1, processing_flags="all")
         self._eeg_stream.get_data()  # reset the number of new samples after the filter is applied
-        self._eeg_data = np.zeros((self._channels, self._samples))
-        self._fft_data = np.zeros((self._channels, int(self._samples/2)))
-        self._bnd_data = np.zeros(5)
-        self._hst_data = np.zeros((5, int(self._history_length * 5.0)))  # history length * update rate of the analysis thread
+        with self._eeg_lock:
+            self._eeg_data = np.zeros((self._channels, self._samples))
+        with self._fft_lock:
+            self._fft_data = np.zeros((self._channels, int(self._samples/2)))
+        with self._bnd_lock:
+            self._bnd_data = np.zeros(5)
+        with self._hst_lock:
+            self._hst_data = np.zeros((5, int(self._history_length * 5.0)))  # history length * update rate of the analysis thread
 
         # start streaming loop
         self._lsl_info.setEnabled(True)
         while self._streaming:
-            self._eeg_data, ts = self._eeg_stream.get_data()
-            self._lsl_info.setText("LSL Time {:0.1f}".format(ts[-1]))
-            time.sleep(0.1)
+            with self._eeg_lock:
+                self._eeg_data, ts = self._eeg_stream.get_data()
+            #self._lsl_info.setText("LSL Time {:0.1f}".format(ts[-1]))
             print('r', end="")
+            time.sleep(0.1)
 
         # finished
         self._lsl_info.setEnabled(False)
@@ -356,27 +375,30 @@ class Mind:
         self._bnd_info.setEnabled(True)
         while self._streaming:
             try:
-                self._fft_data = np.fft.rfft(self._eeg_data, axis=1)
-                self._fft_data = np.abs(self._fft_data)**2
-                all_channels = self._fft_data.sum(axis=0)[1:]/self._channels     # sum of fft over all channels, excluding DC
-                self._bnd_data = np.array([a[0].sum()*self._fft_resolution for a in np.split(all_channels, bins)[:5]])
-
-                if is_relative:
-                    self._bnd_data = self._bnd_data / self._bnd_data.sum() # relative power
-                self._hst_data[:, :-1] = self._hst_data[:, 1:]
-                self._hst_data[:, -1] = self._bnd_data
-                if is_relative:
-                    self._bnd_info.setText("{:0.1f} | {:0.1f} | {:0.1f} | {:0.1f} | {:0.1f}".format(*self._bnd_data))
-                else:
-                    self._bnd_info.setText("{:0.1f} | {:0.1f} | {:0.1f} | {:0.1f} | {:0.1f}".format(
-                        self._bnd_data[0] * 1e6, self._bnd_data[1] * 1e6, self._bnd_data[2] * 1e6,
-                        self._bnd_data[3] * 1e6,
-                        self._bnd_data[4] * 1e6))
+                with self._fft_lock:
+                    with self._eeg_lock:
+                        self._fft_data = np.fft.rfft(self._eeg_data, axis=1)
+                    self._fft_data = np.abs(self._fft_data)**2
+                    all_channels = self._fft_data.sum(axis=0)[1:]/self._channels     # sum of fft over all channels, excluding DC
+                with self._bnd_lock:
+                    self._bnd_data = np.array([a[0].sum()*self._fft_resolution for a in np.split(all_channels, bins)[:5]])
+                    if is_relative:
+                        self._bnd_data = self._bnd_data / self._bnd_data.sum() # relative power
+                    with self._hst_lock:
+                        self._hst_data[:, :-1] = self._hst_data[:, 1:]
+                        self._hst_data[:, -1] = self._bnd_data
+                    #if is_relative:
+                    #    self._bnd_info.setText("{:0.1f} | {:0.1f} | {:0.1f} | {:0.1f} | {:0.1f}".format(*self._bnd_data))
+                    #else:
+                    #    self._bnd_info.setText("{:0.1f} | {:0.1f} | {:0.1f} | {:0.1f} | {:0.1f}".format(
+                    #        self._bnd_data[0] * 1e6, self._bnd_data[1] * 1e6, self._bnd_data[2] * 1e6,
+                    #        self._bnd_data[3] * 1e6,
+                    #    self._bnd_data[4] * 1e6))
+                    print('a', end="")
             except Exception as e:
                 print(e)
                 time.sleep(0.5)
             time.sleep(0.2)
-            print('a', end="")
 
         # finished
         self._bnd_info.setEnabled(False)
