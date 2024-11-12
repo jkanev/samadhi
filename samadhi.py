@@ -28,6 +28,7 @@ class Mind:
 
     # data streaming related
     _streaming = False   # whether we're streaming currently
+    _showing_eegpsd = False     # whether we're showing the eeg/psd tab
     _data_seconds = 10.0  # how much data do we have in the _eeg_data array
     _sampling_rate = 0   # sampling rate of eeg data
     _samples = 0         # seconds times sampling rate
@@ -62,6 +63,7 @@ class Mind:
     _parent_tabwidget = False
 
     # info labels
+    _gui_lock = threading.Lock()
     _bnd_label = False
     _bnd_info = ""
     _lsl_label = False
@@ -111,13 +113,18 @@ class Mind:
         self._checkbox_connect_lsl.clicked.connect(self._connect_eeg_stream)
         self._checkbox_display_eegpsd.clicked.connect(self._create_eegpsd_display_tab)
 
-    def reset(self):
+    def __del__(self):
+        self._connect_eeg_stream(False)
+
+    def _reset(self):
         """
         Resets the values after a stream disconnect, also removes the tab
         :return: void
         """
-        print("reset")
+
+        # set streaming to false, making all threads stop
         self._streaming = False
+        self._showing_eegpsd = False
         self._sampling_rate = 0  # sampling rate of eeg data
         self._samples = 0
         self._fft_resolution = 0
@@ -147,8 +154,14 @@ class Mind:
             pass
         self._eeg_stream = None
         self._clc_stream = None
+
+        # set GUI elements
+        self._checkbox_display_eegpsd.setEnabled(False)
+        self._checkbox_display_eegpsd.setChecked(False)
+        self._lsl_label.setEnabled(False)
         self._checkbox_connect_lsl.setText("Click to connect")
-        self._connect_eeg_stream(False)
+        self._eeg_label.setEnabled(False)
+        self._create_eegpsd_display_tab(False)
 
     def _connect_eeg_stream(self, connect):
         """
@@ -160,10 +173,9 @@ class Mind:
         # if we're connecting
         if connect:
 
-            self._name = self._lineedit_name.text()
-
             # first resolve an EEG stream on the lab network
-            print("Finding an LSL streams.")
+            print("Connecting to LSL stream... ")
+            self._name = self._lineedit_name.text()
             streams = resolve_streams()
 
             # create a new inlet to read from the stream
@@ -177,10 +189,12 @@ class Mind:
                     self._samples = int(self._data_seconds * self._sampling_rate)
                     self._eeg_stream = Stream(self._data_seconds, name=s_name, stype=s.stype, source_id=s.source_id)
                     self._checkbox_connect_lsl.setText("Connected")
-                    print("Connected to LSL stream")
 
-                    # create display tab
+                    # start GUI update function (in same thread)
                     self._streaming = True
+                    self._gui_timer = QtCore.QTimer()
+                    self._gui_timer.timeout.connect(self._update_gui)
+                    self._gui_timer.start(300)
 
                     # start data reading thread
                     thstr = threading.Thread(target=self._read_lsl)
@@ -192,19 +206,20 @@ class Mind:
 
                     # enable checkbox
                     self._checkbox_display_eegpsd.setEnabled(True)
-
-                    # todo: start GUI update here
+                    print("... LSL stream connected.")
 
         # if we're disconnecting
         else:
-            self.reset()
-            self._checkbox_display_eegpsd.setEnabled(False)
-            self._checkbox_display_eegpsd.setChecked(False)
-            self._create_eegpsd_display_tab()
+            print("Disconnecting from LSL stream... ")
+            self._reset()
+            print("... LSL stream disconnected.")
 
-    def _create_eegpsd_display_tab(self):
+    def _create_eegpsd_display_tab(self, create):
 
-        if self._checkbox_display_eegpsd.isChecked():
+        if create:
+
+            # note
+            print("Creating EEG/PSD display tab.")
 
             # create widgets
             self._displaytab = QtWidgets.QWidget()
@@ -215,10 +230,6 @@ class Mind:
             self._parent_tabwidget.setTabText(self._parent_tabwidget.indexOf(self._displaytab), self._name)
 
             # channel names
-            #c_names = ['Fp1', 'Fpz', 'Fp2', 'AFz', 'F7',  'F3',  'Fz', 'F4',
-            #           'F8',  'FC5', 'FC1', 'FC2', 'FC6', 'T7',  'C3', 'Cz',
-            #           'C4',  'T8',  'CP5', 'CP1', 'CP2', 'CP6', 'P7', 'P3',
-            #           'Pz',  'P4',  'P8', 'POz', 'O1', 'Oz', 'O2']
             c_names = ['C{}'.format(n+1) for n in range(0, self._channels)]
 
             # first eeg plot
@@ -268,19 +279,25 @@ class Mind:
 
             # start display thread
             time.sleep(1)
+            self._showing_eegpsd = True
             thdsp = threading.Thread(target=self._display_eeg_psd)
             thdsp.start()
 
         else:
-            self._parent_tabwidget.removeTab(self._parent_tabwidget.indexOf(self._displaytab))
+            if self._displaytab:
+                print("Removing EEG/PSD display tab.")
+                self._parent_tabwidget.removeTab(self._parent_tabwidget.indexOf(self._displaytab))
+            self._showing_eegpsd = False
 
     def _display_eeg_psd(self):
 
+        # starting thread
+        print("Starting EEG/PSD display.")
         while not len(self._eeg_data)\
                 or not len(self._fft_data)\
                 or not len(self._bnd_data)\
                 or not len(self._hst_data):
-            time.sleep(1.0)
+            time.sleep(0.2)
 
         # eeg + fft
         eeg_lines = self._eeg_axes.plot(self._eeg_data.T)  # the last channel in the simulator has the alpha intensity
@@ -306,7 +323,7 @@ class Mind:
             hst_lines[n].set_linewidth(0.5)
 
         self._eeg_label.setEnabled(True)
-        while self._streaming:
+        while self._streaming and self._showing_eegpsd:
             try:
                 with self._eeg_lock:
                     eeg_max = self._eeg_data.max()
@@ -330,20 +347,23 @@ class Mind:
                 self._fft_canvas.draw()
                 self._bnd_canvas.draw()
                 self._hst_canvas.draw()
-                #self._eeg_label.setText("{:.1f} µV - {:.1f} µV".format(eeg_min*1e6, eeg_max*1e6))
-                print('d', end="")
+                with self._gui_lock:
+                    self._eeg_info = "{:.1f} µV - {:.1f} µV".format(eeg_min*1e6, eeg_max*1e6)
             except Exception as e:
                 print(e)
                 time.sleep(0.5)
 
-        # finished
-        self._eeg_label.setEnabled(False)
+        # done.
+        print("Ending EEG/PSD display.")
 
     def _read_lsl(self):
         """
         Read data into buffer a, then call a new thread
         :return:
         """
+
+        # Begin
+        print("Starting LSL reading.")
 
         # init data buffers
         self._eeg_stream.connect(acquisition_delay=0.1, processing_flags="all")
@@ -362,12 +382,12 @@ class Mind:
         while self._streaming:
             with self._eeg_lock:
                 self._eeg_data, ts = self._eeg_stream.get_data()
-            #self._lsl_label.setText("LSL Time {:0.1f}".format(ts[-1]))
-            print('r', end="")
+            with self._gui_lock:
+                self._lsl_info = "LSL Time {:0.1f}".format(ts[-1])
             time.sleep(0.1)
 
-        # finished
-        self._lsl_label.setEnabled(False)
+        # done.
+        print("Ending LSL reading.")
 
     def _analyse_psd(self):
         """
@@ -375,6 +395,8 @@ class Mind:
         :return:
         """
 
+        # start
+        print("Starting analysis.")
         while not len(self._eeg_data):
             time.sleep(0.5)
 
@@ -411,21 +433,19 @@ class Mind:
                             self._bnd_data[0] * 1e6, self._bnd_data[1] * 1e6, self._bnd_data[2] * 1e6,
                             self._bnd_data[3] * 1e6,
                         self._bnd_data[4] * 1e6)
-                    print('a', end="")
             except Exception as e:
                 print(e)
                 time.sleep(0.5)
             time.sleep(0.2)
 
-        # finished
-        self._bnd_label.setEnabled(False)
+        # done.
+        print("Ending analysis.")
 
     def _update_gui(self):
-        """ Function to constantly update the GUI. Information from other threads.
-        :return:
-        """
-        if self._streaming:
-            self._bnd_label.setEnabled(True)
+        with self._gui_lock:
+            self._lsl_label.setText(self._lsl_info)
+            self._bnd_label.setText(self._bnd_info)
+            self._eeg_label.setText(self._eeg_info)
 
 
 class SamadhiWindow(QtWidgets.QMainWindow, Ui_MainWindow):
@@ -461,9 +481,10 @@ class SamadhiWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                       self.labelLslStatus, self.labelEegStatus, self.labelFrequencyBands)
 
     def __del__(self):
+        print("Closing main window... ")
         for m in self._minds:
-            m.reset()
-
+            m.__del__()
+        print("... main windows closed.")
 
     def add_mind(self, combobox_streamname, lineedit_name, checkbox_connect,
                        checkbox_analyse,
@@ -473,6 +494,7 @@ class SamadhiWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                                 checkbox_analyse,
                                 checkbox_display_eegpsd, checkbox_display_ddots,
                                 lsl_info, eeg_info, bnd_info, self.tabWidget))
+
 
 class Samadhi:
 
