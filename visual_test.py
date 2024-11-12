@@ -46,7 +46,7 @@ for m in range(0, M):
             s[m][n][-(index + 1)] += value  # add to back, so beginning and end match and the circle stays closed
 
 # downsample so all circles have the same length (N samples)
-for m in range(0,M):
+for m in range(0, M):
     r[m] = [[]]*5
     for n in range(0, 5):
         r[m][n] = np.zeros(N)
