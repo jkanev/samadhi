@@ -51,6 +51,7 @@ class Mind:
     _clc_stream = None   # the lsl calculation output stream outlet, if in calculation mode
 
     # normalisation
+    _bnd_smoothing = 0.9   #
     _bnd_max = []       # maximum values of bands, calculated from data d(t) by x(t+1) = max(0.99*x(t), d(t))
     _bnd_min = []       # minimum values of bands, calculated from data d(t) by x(t+1) = min(1.01*x(t), d(t))
     _bnd_mid = []       # the middle between max and min
@@ -323,6 +324,7 @@ class Mind:
             ylim = 32
             plt.ioff()
             fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+            fig.subplots_adjust(top=1, bottom=0.0)
             self._ddots_canvas = FigureCanvasQTAgg(fig)
             self._ddots_axes = ax
             self._ddots_layout.addWidget(self._ddots_canvas, 0, 0, 1, 1)
@@ -370,9 +372,6 @@ class Mind:
         M = 40  # number of circles
         N = 200  # points per circle
         lines = [None] * M
-        thickness = 0.5
-        ax = None
-        fig = None
         freq_start = 1.0
         freq_step = 0.005
         r = [[]] * M  # the interpolated circle data, zeros for now, consisting of M*N circles s[M][1..5], all the same length
@@ -384,8 +383,7 @@ class Mind:
             print(freq)
             for n in range(0, 5):
                 s[m][n] = np.zeros(int((2 / freq) * np.pi / dt))
-            # t[m] = [m for m in np.arange(0, 2 * np.pi * (1 + 2 / len(s[m][0])), 2 * np.pi / (len(s[m][0])))[0:len(s[m][0])]]
-            t[m] = [m for m in np.arange(0, 2 * np.pi * (1.0 + 1.0 / N), 2 * np.pi / (N - 1.0))]
+            t[m] = [m for m in np.arange(0, 2 * np.pi, 2 * np.pi / N)]
 
         # Average over all circles - pre-calculate parts of the sum of sines
         for m in range(0, M):
@@ -395,8 +393,7 @@ class Mind:
                     value = f[n][i] - 0.5
                     index = i % len(s[m][n])
                     s[m][n][index] += value  # add to front
-                    s[m][n][-(
-                                index + 1)] += value  # add to back, so beginning and end match and the circle stays closed
+                    s[m][n][-(index + 1)] += value  # add to back, so beginning and end match and the circle stays closed
 
         # downsample so all circles have the same length (N samples)
         for m in range(0, M):
@@ -409,18 +406,29 @@ class Mind:
                 r[m][n][N - 1] = s[m][n][0]  # close the circle
 
         first = True
-        s = 0  # index into speed vector
         p = 0.0
         q = 1.0
-        k = 0
+        k = np.array([0.0, 0.0, 0.0, 0.0, 0.0])
         while self._streaming and self._showing_ddots:
 
+            # k direction
+            # p in/out movement
+
+            # cX - amount of frequency ring fX for each frequency X (out of five)
             c1 = self._bnd_data[0]
             c2 = self._bnd_data[1]
             c3 = self._bnd_data[2]
             c4 = self._bnd_data[3]
-            c5 = c1 - c2 + c3 - c4
+            c5 = self._bnd_data[3]
+            c6 = 0.2*(c1 - c2 + c3 - c4 + c5)     # c6 - amount of in/out movement
             print("Frequency bands: {:.2f}, {:.2f}, {:.2f}, {:.2f}, {:.2f}".format(c1, c2, c3, c4, c5), end='\r')
+
+            # k[X] - turning speed and direction of each frequency ring
+            k += 5.0*(np.array([c1, c2, c3, c4, c5]) - 0.2)
+            kn = np.floor(k)   # left index into ring
+            km = kn + 1        # right index into ring
+            kp = km - k        # left amount
+            kq = k - kn        # right amount
 
             # plot curves
             last_data = []
@@ -428,19 +436,24 @@ class Mind:
                 # offset = np.sqrt((M-m))
                 offset = M - m
                 offset = np.sqrt(np.sqrt(offset * offset * offset))  # x^(3/4)
-                data =   c1 * np.roll(r[m][0], k) \
-                       + c2 * np.roll(r[m][1], 0) \
-                       + c3 * np.roll(r[m][2],-k) \
-                       + c4 * np.roll(r[m][3], 0) \
-                       + c5 * np.roll(r[m][4], k) + 1
+
+                # soft rolling of circles by interpolating between floor(k) and ceil(k)
+                data = (  c1 * (np.roll(r[m][0], kn[0]) * kp[0] + np.roll(r[m][0], km[0]) * kq[0])
+                        + c2 * (np.roll(r[m][1], kn[1]) * kp[1] + np.roll(r[m][1], km[1]) * kq[1])
+                        + c3 * (np.roll(r[m][2], kn[2]) * kp[2] + np.roll(r[m][2], km[2]) * kq[2])
+                        + c4 * (np.roll(r[m][3], kn[3]) * kp[3] + np.roll(r[m][3], km[3]) * kq[3])
+                        + c5 * (np.roll(r[m][4], kn[4]) * kp[4] + np.roll(r[m][4], km[4]) * kq[4])
+                        + 1)
                 data /= data.max()
                 data *= offset
                 data += offset
                 if first:
                     try:
                         if len(last_data):
-                            [lines[m]] = self._ddots_axes.plot(t[m], p * last_data + q * data, '.', linewidth=thickness,
-                                                 color=(m / M, 0.5 * m / M, 1 - m / M))
+                            [lines[m]] = self._ddots_axes.plot(t[m],
+                                                               p * last_data + q * data,
+                                                               '.',
+                                                               color=(m / M, 0.5 * m / M, 1 - m / M))
                     except BaseException as e:
                         print("Plot exception {} for curve n={}".format(e, m))
                 else:
@@ -449,24 +462,20 @@ class Mind:
                             lines[m].set_ydata(p * last_data + q * data)
                             if m == 1:
                                 lines[m].set_color(
-                                    (c1 * q * m / M, c2 * q * 0.5 * m / M, (1.0 - 0.5 * c3) * q * (1 - m / M)))
+                                    (c2 * q * m / M, c3 * q * 0.5 * m / M, (1.0 - 0.5 * c4) * q * (1 - m / M)))
                             elif m == M - 1:
                                 lines[m].set_color(
-                                    (c1 * p * m / M, c2 * p * 0.5 * m / M, (1.0 - 0.5 * c3) * p * (1 - m / M)))
+                                    (c2 * p * m / M, c3 * p * 0.5 * m / M, (1.0 - 0.5 * c4) * p * (1 - m / M)))
                             else:
-                                lines[m].set_color((c1 * m / M, c2 * 0.5 * m / M, (1.0 - 0.5 * c3) * (1 - m / M)))
+                                lines[m].set_color((c2 * m / M, c3 * 0.5 * m / M, (1.0 - 0.5 * c4) * (1 - m / M)))
                     except BaseException as e:
                         print("Plot exception {} for curve n={}".format(e, m))
                 last_data = data
             self._ddots_canvas.draw()
             first = False
             time.sleep(0.01)
-            s += 1
-            if s > len(f[5]):
-                s = 0
-            p = f[5][s] % 1
+            p = (p + c6) % 1
             q = 1.0 - p
-            k += 1
 
     def _display_eeg_psd(self):
 
@@ -563,7 +572,7 @@ class Mind:
                 self._eeg_data, ts = self._eeg_stream.get_data()
             with self._gui_lock:
                 self._lsl_info = "LSL Time {:0.1f}".format(ts[-1])
-            time.sleep(0.1)
+            #time.sleep(0.1)
 
         # done.
         print("Ending LSL reading.")
@@ -587,6 +596,7 @@ class Mind:
         beta = abs(self._fft_freqs - 30.0).argmin()      # beta: 13-30 Hz
         gamma = abs(self._fft_freqs - 50.0).argmin()    # gamma: 30-100 Hz
         bins = [delta, theta, alpha, beta, gamma]
+        smooth = self._bnd_smoothing
 
         is_relative = True
 
@@ -598,13 +608,14 @@ class Mind:
                         self._fft_data = np.fft.rfft(self._eeg_data, axis=1)
                     self._fft_data = np.abs(self._fft_data)**2
                     all_channels = self._fft_data.sum(axis=0)[1:]/self._channels     # sum of fft over all channels, excluding DC
-                with self._bnd_lock:
-                    self._bnd_data = np.array([a[0].sum()*self._fft_resolution for a in np.split(all_channels, bins)[:5]])
+                    bnd_data = np.array([a[0].sum()*self._fft_resolution for a in np.split(all_channels, bins)[:5]])
                     if is_relative:
-                        self._bnd_data = self._bnd_data / self._bnd_data.sum() # relative power
-                    with self._hst_lock:
-                        self._hst_data[:, :-1] = self._hst_data[:, 1:]
-                        self._hst_data[:, -1] = self._bnd_data
+                        bnd_data = bnd_data / bnd_data.sum() # relative power
+                    with self._bnd_lock:
+                        self._bnd_data = smooth*self._bnd_data + (1.0-smooth)*bnd_data
+                        with self._hst_lock:
+                            self._hst_data[:, :-1] = self._hst_data[:, 1:]
+                            self._hst_data[:, -1] = self._bnd_data
                     if is_relative:
                         self._bnd_info = "{:0.1f} | {:0.1f} | {:0.1f} | {:0.1f} | {:0.1f}".format(*self._bnd_data)
                     else:
@@ -615,7 +626,7 @@ class Mind:
             except Exception as e:
                 print(e)
                 time.sleep(0.5)
-            time.sleep(0.2)
+            time.sleep(0.1)
 
         # done.
         print("Ending analysis.")
