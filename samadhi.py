@@ -552,9 +552,11 @@ class Mind:
 
         # Begin
         print("Starting LSL reading.")
-
+ 
         # init data buffers
         self._eeg_stream.connect(acquisition_delay=0.1, processing_flags="all")
+        self._eeg_stream.filter(1, 70)
+        self._eeg_stream.notch_filter(50)
         self._eeg_stream.get_data()  # reset the number of new samples after the filter is applied
         with self._eeg_lock:
             self._eeg_data = np.zeros((self._channels, self._samples))
