@@ -424,7 +424,7 @@ class Mind:
             print("Frequency bands: {:.2f}, {:.2f}, {:.2f}, {:.2f}, {:.2f}".format(c1, c2, c3, c4, c5), end='\r')
 
             # k[X] - turning speed and direction of each frequency ring
-            k += 5.0*(np.array([c1, c2, c3, c4, c5]) - 0.2)
+            k += np.array([c1, -c2, c3, -c4, c5])
             kn = np.floor(k)   # left index into ring
             km = kn + 1        # right index into ring
             kp = km - k        # left amount
