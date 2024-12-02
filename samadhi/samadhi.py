@@ -4,7 +4,7 @@
 #!/usr/bin/python3
 
 import sys
-from mainwindow import *
+from .mainwindow import *
 from PyQt6 import QtCore, QtGui, QtWidgets
 from pylsl import StreamInfo, StreamInlet
 import threading
