@@ -4,19 +4,69 @@
 #!/usr/bin/python3
 
 import sys
+
 from .mainwindow import *
-from PyQt6 import QtCore, QtGui, QtWidgets
-from pylsl import StreamInfo, StreamInlet
+from PyQt6 import QtCore, QtGui, QtWidgets, QtOpenGLWidgets
 import threading
 import numpy as np
 import time
-import mne
 from mne_lsl.stream import StreamLSL as Stream
 from mne_lsl.lsl import resolve_streams
 from matplotlib import use as mpl_use
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, FigureManagerQT
 import matplotlib.pyplot as plt
 mpl_use("QtAgg")
+
+class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
+
+    _painter = None
+    _points = False
+    _x_numbers = False
+    _y_numbers = False
+    _r_numbers = False
+    _phi_numbers = False
+    _timer = False
+    _pen_draw = QtGui.QPen(QtGui.QColor(80, 200, 220))
+    _pen_erase = QtGui.QPen(QtGui.QColor(0, 0, 0))
+    _brush_draw = QtGui.QBrush(QtGui.QColor(80, 200, 220))
+    _brush_erase = QtGui.QBrush(QtGui.QColor(0, 0, 0))
+    _function = False
+
+    def __init__(self):
+        super().__init__()
+        self._painter = QtGui.QPainter(self)
+        self._r_numbers = np.arange(0, 2.0*np.pi, 0.01)
+        self._phi_numbers = np.sin(self._r_numbers)
+        self._x_numbers = np.zeros(self._r_numbers.shape)
+        self._y_numbers = np.zeros(self._r_numbers.shape)
+        self._points = [QtCore.QPoint(int(100*x), int(np.sin(x)*100)) for x in self._x_numbers]
+        self._functions = self.context()
+        self._counter = 0.0
+
+    def start(self):
+        self._timer = QtCore.QTimer()
+        self._timer.timeout.connect(self.update)
+        self._timer.start(10)
+
+    def paintEvent(self, e):
+
+        size = min(e.rect().height(), e.rect().width())
+        self._counter += 0.01
+        center_x = e.rect().width()/2
+        center_y = e.rect().height()/2
+        self._phi_numbers = 0.1*np.sin((self._r_numbers+self._counter)*5.0)+0.2
+        self._x_numbers = (self._phi_numbers * np.cos(self._r_numbers)) * size + center_x
+        self._y_numbers = self._phi_numbers * np.sin(self._r_numbers) * size + center_y
+        self._painter.begin(self)
+        self._painter.setPen(self._pen_erase)
+        self._painter.setBrush(self._brush_erase)
+        self._painter.drawRect(e.rect())
+        self._painter.setPen(self._pen_draw)
+        self._painter.setBrush(self._brush_draw)
+        for p in range(len(self._x_numbers)):
+            self._painter.drawEllipse(int(self._x_numbers[p]),
+                                      int(self._y_numbers[p]), 6, 6)
+        self._painter.end()
 
 
 class Mind:
@@ -95,6 +145,7 @@ class Mind:
     _ddots_tab = False
     _ddots_canvas = False
     _ddots_axes = False
+    _ddots_ogl_wdg = False
 
     def __init__(self, combobox_streamname, lineedit_name, checkbox_connect, checkbox_analyse_psd,
                        checkbox_display_eegpsd, checkbox_visualisation_ddots,
@@ -121,7 +172,7 @@ class Mind:
         # Connect slot eeg stream
         self._checkbox_connect_lsl.clicked.connect(self._connect_eeg_stream)
         self._checkbox_display_eegpsd.clicked.connect(self._create_eegpsd_display_tab)
-        self._checkbox_visualisation_ddots.clicked.connect(self._create_dancing_dots_display_tab)
+        self._checkbox_visualisation_ddots.clicked.connect(self._create_dancing_dots_display_opengl_tab)
 
     def __del__(self):
         self._connect_eeg_stream(False)
@@ -174,7 +225,7 @@ class Mind:
         self._checkbox_connect_lsl.setText("Click to connect")
         self._eeg_label.setEnabled(False)
         self._create_eegpsd_display_tab(False)
-        self._create_dancing_dots_display_tab(False)
+        self._create_dancing_dots_display_opengl_tab(False)
 
     def _connect_eeg_stream(self, connect):
         """
@@ -339,7 +390,7 @@ class Mind:
             # start display thread
             time.sleep(1)
             self._showing_ddots = True
-            thdsp = threading.Thread(target=self._display_dancing_dots)
+            thdsp = threading.Thread(target=self._display_dancing_dots_opengl)
             thdsp.start()
 
         else:
@@ -476,6 +527,37 @@ class Mind:
             time.sleep(0.01)
             p = (p + c6) % 1
             q = 1.0 - p
+
+    def _create_dancing_dots_display_opengl_tab(self, create):
+
+        if create:
+
+            # note
+            print("Creating Dancing Dots display tab.")
+
+            # create widgets
+            self._ddots_tab = QtWidgets.QWidget()
+            self._ddots_layout = QtWidgets.QGridLayout(self._ddots_tab)
+            sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Policy.Maximum, QtWidgets.QSizePolicy.Policy.Maximum)
+            self._ddots_tab.setSizePolicy(sizePolicy)
+            self._parent_tabwidget.addTab(self._ddots_tab, "")
+            self._parent_tabwidget.setTabText(self._parent_tabwidget.indexOf(self._ddots_tab),
+                                              self._name + " -- Dancing Dots")
+
+            # plt.plot(t[0], s[0][0])
+            self._ddots_ogl_wdg = OpenGLDancingDots()
+            self._ddots_layout.addWidget(self._ddots_ogl_wdg, 0, 0, 1, 1)
+
+            # start display thread
+            time.sleep(1)
+            self._showing_ddots = True
+            self._ddots_ogl_wdg.start()
+
+        else:
+            if self._ddots_tab:
+                print("Removing Dancing Dots display tab.")
+                self._parent_tabwidget.removeTab(self._parent_tabwidget.indexOf(self._ddots_tab))
+            self._showing_ddots = False
 
     def _display_eeg_psd(self):
 
