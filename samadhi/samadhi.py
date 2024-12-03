@@ -35,7 +35,7 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
     def __init__(self):
         super().__init__()
         self._painter = QtGui.QPainter(self)
-        self._r_numbers = np.arange(0, 2.0*np.pi, 0.01)
+        self._r_numbers = np.arange(0, 2.0*np.pi, 0.00079)
         self._phi_numbers = np.sin(self._r_numbers)
         self._x_numbers = np.zeros(self._r_numbers.shape)
         self._y_numbers = np.zeros(self._r_numbers.shape)
@@ -64,6 +64,9 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
         self._painter.setPen(self._pen_draw)
         self._painter.setBrush(self._brush_draw)
         for p in range(len(self._x_numbers)):
+            #color = QtGui.QColor(p % 255, 2*p % 255, 3*p % 255)
+            #self._painter.setPen(color)
+            #self._painter.setBrush(color)
             self._painter.drawEllipse(int(self._x_numbers[p]),
                                       int(self._y_numbers[p]), 6, 6)
         self._painter.end()
