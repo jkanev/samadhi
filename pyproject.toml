@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "samadhi"
+authors = [
+    {name = "Jacob Kanev", email = "jkanev@zoho.com"}
+]
+description = "Monitoring LSL EEG data, frequency analysis, and different visual displays."
+version = "0.1"
+readme = "README.md"
+requires-python = ">=3.12.5"
+dependencies = [
+    "PyQt6",
+    "numpy",
+    "mne_lsl==1.6",     # 1.8 causes a memory exception on windows
+    "matplotlib",
+    "python-osc"
+]
+
+[project.urls]
+homepage = "https://github.com/jkanev/samadhi"
+documentation = "https://github.com/jkanev/samadhi"
+repository = "https://github.com/jkanev/samadhi.git"
+issues = "https://github.com/jkanev/samadhi/-/issues"
