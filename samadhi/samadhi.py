@@ -38,6 +38,11 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
     _shader_program_id = 0
     _M = 0
     _N = 0
+    _data_colours = [[np.array([0.0, 0.5, 0.5]), np.array([0.0, 0.3, 0.0])],
+                     [np.array([0.5, 0.5, 0.0]), np.array([0.4, 0.0, 0.0])],
+                     [np.array([1.0, 0.0, 0.0]), np.array([0.0, 0.0, 0.4])],
+                     [np.array([0.5, 0.0, 0.5]), np.array([0.0, 0.3, 0.0])],
+                     [np.array([0.0, 1.0, 0.0]), np.array([0.0, 0.0, 0.4])]]
 
     def __init__(self, get_data):
         super().__init__()
@@ -211,18 +216,31 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
                     fr = m*self._N         # from offset
                     to = (m + 1)*self._N   # to offset
                     self._phi_numbers[fr:to] = self._p * last_data + self._q * data
+                    colour_in =   c1 * self._data_colours[0][0] \
+                                + c2 * self._data_colours[1][0] \
+                                + c3 * self._data_colours[2][0] \
+                                + c4 * self._data_colours[3][0] \
+                                + c5 * self._data_colours[4][0]
+                    colour_out =  c1 * self._data_colours[0][1] \
+                                + c2 * self._data_colours[1][1] \
+                                + c3 * self._data_colours[2][1] \
+                                + c4 * self._data_colours[3][1] \
+                                + c5 * self._data_colours[4][1]
                     if m == 1:
-                        self._red[fr:to] = c2 * self._q * m / self._M
-                        self._green[fr:to] = c3 * self._q * 0.5 * m / self._M
-                        self._blue[fr:to] = (1.0 - 0.5 * c4) * self._q * (1 - m / self._M)
+                        self._red[fr:to] = colour_out[0] * self._q
+                        self._green[fr:to] = colour_out[1] * self._q
+                        self._blue[fr:to] = colour_out[2] * self._q
                     elif m == self._M - 1:
-                        self._red[fr:to] = c2 * self._p * m / self._M
-                        self._green[fr:to] = c3 * self._p * 0.5 * m / self._M
-                        self._blue[fr:to] = (1.0 - 0.5 * c4) * self._p * (1 - m / self._M)
+                        self._red[fr:to] = colour_in[0] * self._p
+                        self._green[fr:to] = colour_in[1] * self._p
+                        self._blue[fr:to] = colour_in[2] * self._p
                     else:
-                        self._red[fr:to] = c2 * m / self._M
-                        self._green[fr:to] = c3 * 0.5 * m / self._M
-                        self._blue[fr:to] = (1.0 - 0.5 * c4) * (1 - m / self._M)
+                        c_in = m / self._M
+                        c_out = 1.0 - c_in
+                        colour = c_in * colour_in + c_out * colour_out
+                        self._red[fr:to] = colour[0]
+                        self._green[fr:to] = colour[1]
+                        self._blue[fr:to] = colour[2]
             except BaseException as e:
                 print("Plot exception {} for curve n={}".format(e, m))
             last_data = data
