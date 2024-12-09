@@ -16,7 +16,8 @@ dependencies = [
     "numpy",
     "mne_lsl==1.6",     # 1.8 causes a memory exception on windows
     "matplotlib",
-    "python-osc"
+    "python-osc",
+    "OpenGL"
 ]
 
 [project.urls]
