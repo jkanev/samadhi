@@ -19,6 +19,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, FigureManagerQT
 import matplotlib.pyplot as plt
 mpl_use("QtAgg")
 
+
 class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
 
     _get_data = False
@@ -38,18 +39,22 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
     _shader_program_id = 0
     _M = 0
     _N = 0
-    _data_colours = [[np.array([0.0, 0.5, 0.5]), np.array([0.0, 0.3, 0.0])],
-                     [np.array([0.5, 0.5, 0.0]), np.array([0.4, 0.0, 0.0])],
-                     [np.array([1.0, 0.0, 0.0]), np.array([0.0, 0.0, 0.4])],
-                     [np.array([0.5, 0.0, 0.5]), np.array([0.0, 0.3, 0.0])],
-                     [np.array([0.0, 1.0, 0.0]), np.array([0.0, 0.0, 0.4])]]
+    _softmax = 3.0
+    _viewport = [0.0, 0.0, 0.0, 0.0]
+    _update_viewport = False
+
+    _data_colours = [[np.array([0.0, 0.2, 0.0]), np.array([1.0, 0.0, 1.0])],
+                     [np.array([1.0, 0.0, 0.0]), np.array([0.0, 0.2, 0.2])],
+                     [np.array([0.2, 0.2, 0.0]), np.array([0.0, 0.0, 1.0])],
+                     [np.array([1.0, 1.0, 0.0]), np.array([0.0, 0.0, 0.2])],
+                     [np.array([0.2, 0.0, 0.0]), np.array([0.0, 1.0, 1.0])]]
 
     def __init__(self, get_data):
         super().__init__()
 
         self._get_data = get_data
 
-        self._M = 40  # number of circles
+        self._M = 30  # number of circles
         self._N = 200  # points per circle
 
         # k direction
@@ -80,7 +85,6 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
              (abs(np.sin(4 * t0))),
              (abs(np.sin(5 * t0))),
              ((np.sin(2 * t0) + 1) * 10.0)]
-
 
         # Create 10 circles of different lengths
         lines = [None] * self._M
@@ -127,7 +131,7 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
                        " out vec4 vertColour; "
                        " void main() { "
                        "     gl_Position = vec4(xyCoords, 0.0, 1.0); "
-                       "     gl_PointSize = 4.0; "
+                       "     gl_PointSize = 6.0; "
                        "     vertColour = vec4(vxColour, 1.0); "
                        " } ")
         gl.glShaderSource(vertex_shader_id, shader_code)
@@ -172,22 +176,18 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
         gl.glVertexAttribPointer(1, 3, gl.GL_FLOAT, gl.GL_FALSE, 5*size, ctypes.c_void_p(2 * size))
         gl.glEnableVertexAttribArray(1)
         gl.glUseProgram(self._shader_program_id)
-        gl.glPointSize(4)
+        gl.glPointSize(6)
 
     def paintGL(self):
 
         # cX - amount of frequency ring fX for each frequency X (out of five)
         freqs = self._get_data()
-        c1 = freqs[0]
-        c2 = freqs[1]
-        c3 = freqs[2]
-        c4 = freqs[3]
-        c5 = freqs[4]
+        [c1, c2, c3, c4, c5] = (freqs**self._softmax) / (freqs**self._softmax).sum()
         c6 = 0.1 * (c1 - c2 + c3 - c4 + c5)  # c6 - amount of in/out movement
         print("Frequency bands: {:.2f}, {:.2f}, {:.2f}, {:.2f}, {:.2f}".format(c1, c2, c3, c4, c5), end='\r')
 
         # k[X] - turning speed and direction of each frequency ring
-        self._k += 0.1*np.array([c1, -c2, c3, -c4, c5])
+        self._k += 0.5*np.array([c1, -c2, c3, -c4, c5])
         kn = np.floor(self._k)  # left index into ring
         km = kn + 1  # right index into ring
         kp = km - self._k  # left amount
@@ -198,7 +198,7 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
         for m in range(0, self._M):
 
             # offset = np.sqrt((M-m))
-            offset = self._M - m
+            offset = 1.3*(self._M - m)
             offset = np.sqrt(np.sqrt(offset * offset * offset)) / self._M # x^(3/4)
 
             # soft rolling of circles by interpolating between floor(k) and ceil(k)
@@ -247,14 +247,27 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
         self._p = (self._p + c6) % 1
         self._q = 1.0 - self._p
 
+        # convert to x/y/colour data and push to graphic card
         self._y_numbers = (self._phi_numbers * np.cos(self._r_numbers))
         self._x_numbers = self._phi_numbers * np.sin(self._r_numbers)
         self._vertices = np.column_stack((self._x_numbers, self._y_numbers, self._red, self._green, self._blue)).ravel()
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self._buffer_id)
         gl.glBufferSubData(gl.GL_ARRAY_BUFFER, 0, self._vertices.nbytes, self._vertices)
         gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
+        if self._update_viewport:
+            gl.glViewport(*self._viewport)
         gl.glUseProgram(self._shader_program_id)
         gl.glDrawArrays(gl.GL_POINTS, 0, len(self._x_numbers))
+
+    def resizeGL(self, width, height):
+        size = min(width, height)
+        x = (width - size) // 2
+        y = (height - size) // 2
+        gl.glUseProgram(self._shader_program_id)
+        gl.glViewport(x, y, size, size)
+        self._viewport = [x, y, size, size]
+        self._update_viewport = True
+        print(f"glViewport set to x={x}, y={y}, width={size}, height={size}")
 
     def start(self):
         self._timer = QtCore.QTimer()
@@ -294,7 +307,7 @@ class Mind:
     _clc_stream = None   # the lsl calculation output stream outlet, if in calculation mode
 
     # normalisation
-    _bnd_smoothing = 0.9   #
+    _bnd_smoothing = 0.95   #
     _bnd_max = []       # maximum values of bands, calculated from data d(t) by x(t+1) = max(0.99*x(t), d(t))
     _bnd_min = []       # minimum values of bands, calculated from data d(t) by x(t+1) = min(1.01*x(t), d(t))
     _bnd_mid = []       # the middle between max and min
@@ -356,7 +369,7 @@ class Mind:
         self._parent_tabwidget = parent_tabwidget
 
         # Fill values
-        streams = resolve_streams(timeout=1)
+        streams = resolve_streams(timeout=5)
         for s in streams:
             identifier = "{} | {} | {} Channels | {} Hz" \
                          "".format(s.name, s.source_id, s.n_channels, s.sfreq)
@@ -725,7 +738,7 @@ class Mind:
             p = (p + c6) % 1
             q = 1.0 - p
 
-    def _create_dancing_dots_display_opengl_tab(self, create):
+    def _create_dancing_dots_display_opengl_tab(self, create, fullscreen=True):
 
         if create:
 
@@ -743,12 +756,15 @@ class Mind:
 
             # plt.plot(t[0], s[0][0])
             self._ddots_ogl_wdg = OpenGLDancingDots(self.get_data)
-            self._ddots_layout.addWidget(self._ddots_ogl_wdg, 0, 0, 1, 1)
+            if not fullscreen:
+                self._ddots_layout.addWidget(self._ddots_ogl_wdg, 0, 0, 1, 1)
 
             # start display thread
             time.sleep(1)
             self._showing_ddots = True
             self._ddots_ogl_wdg.start()
+            if fullscreen:
+                self._ddots_ogl_wdg.showFullScreen()
 
         else:
             if self._ddots_tab:
@@ -834,7 +850,7 @@ class Mind:
  
         # init data buffers
         self._eeg_stream.connect(acquisition_delay=0.1, processing_flags="all")
-        self._eeg_stream.filter(1, 70)
+        self._eeg_stream.filter(2, 70)
         self._eeg_stream.notch_filter(50)
         self._eeg_stream.get_data()  # reset the number of new samples after the filter is applied
         with self._eeg_lock:
@@ -870,17 +886,15 @@ class Mind:
             time.sleep(0.5)
 
         self._fft_freqs = np.fft.rfftfreq(self._samples, d=1.0 / self._sampling_rate, device=None)
+        bin_freqs = np.array([3.5, 7.5, 12.5, 30.5, 50.0, 70.0])   # delta, theta, alpha, beta, gamma, total
+        bins = [abs(self._fft_freqs - f).argmin() for f in bin_freqs]
+        widths = np.insert(bin_freqs[1:] - bin_freqs[:-1], 0, bin_freqs[0])
         self._fft_resolution = self._fft_freqs[1]
-        delta = abs(self._fft_freqs - 4.0).argmin()      # delta: 0-4 Hz
-        theta = abs(self._fft_freqs - 7.0).argmin()      # theta: 4-7 Hz
-        alpha = abs(self._fft_freqs - 12.0).argmin()     # alpha: 8-12 Hz
-        beta = abs(self._fft_freqs - 30.0).argmin()      # beta: 13-30 Hz
-        gamma = abs(self._fft_freqs - 50.0).argmin()    # gamma: 30-100 Hz
-        bins = [delta, theta, alpha, beta, gamma]
         smooth = self._bnd_smoothing
-
         is_relative = True
-
+        is_relative_total = True
+        normalisation = [1.0, 2.0, 4.0, 8.0, 16.0]
+        is_normalised = True
         # start streaming loop
         while self._streaming:
             try:
@@ -888,22 +902,29 @@ class Mind:
                     with self._eeg_lock:
                         self._fft_data = np.fft.rfft(self._eeg_data, axis=1)
                     self._fft_data = np.abs(self._fft_data)**2
-                    all_channels = self._fft_data.sum(axis=0)[1:]/self._channels     # sum of fft over all channels, excluding DC
-                    bnd_data = np.array([a[0].sum()*self._fft_resolution for a in np.split(all_channels, bins)[:5]])
+                    fft_all_channels = self._fft_data.sum(axis=0)[1:] / self._channels     # sum of fft over all channels, excluding DC
+                    c = self._fft_resolution     # normalise each band by its width, as if it were 1.0 wide
                     if is_relative:
-                        bnd_data = bnd_data / bnd_data.sum() # relative power
+                        bnd_data = np.array([a[0].sum() * c / a[1] for a in
+                                             zip(np.split(fft_all_channels, bins)[:5], widths)])
+                    else:
+                        bnd_data = np.array([a.sum() * c for a in np.split(fft_all_channels, bins)[:5]])
+                    if is_normalised:
+                        bnd_data = bnd_data * normalisation
+                    if is_relative_total:
+                        bnd_data = bnd_data / bnd_data.sum()   # relative power
                     with self._bnd_lock:
                         self._bnd_data = smooth*self._bnd_data + (1.0-smooth)*bnd_data
                         with self._hst_lock:
                             self._hst_data[:, :-1] = self._hst_data[:, 1:]
                             self._hst_data[:, -1] = self._bnd_data
-                    if is_relative:
+                    if is_relative_total:
                         self._bnd_info = "{:0.1f} | {:0.1f} | {:0.1f} | {:0.1f} | {:0.1f}".format(*self._bnd_data)
                     else:
                         self._bnd_info = "{:0.1f} | {:0.1f} | {:0.1f} | {:0.1f} | {:0.1f}".format(
                             self._bnd_data[0] * 1e6, self._bnd_data[1] * 1e6, self._bnd_data[2] * 1e6,
                             self._bnd_data[3] * 1e6,
-                        self._bnd_data[4] * 1e6)
+                            self._bnd_data[4] * 1e6)
             except Exception as e:
                 print(e)
                 time.sleep(0.5)
@@ -920,6 +941,7 @@ class Mind:
 
     def get_data(self):
         return self._bnd_data
+
 
 class SamadhiWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     """
