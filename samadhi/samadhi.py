@@ -39,7 +39,7 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
     _shader_program_id = 0
     _M = 0
     _N = 0
-    _softmax = 3.0
+    _softmax = 2.0
     _viewport = [0.0, 0.0, 0.0, 0.0]
     _update_viewport = False
 
@@ -82,12 +82,11 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
         f = [(abs(np.sin(1 * t0))),
              (abs(np.sin(2 * t0))),
              (abs(np.sin(3 * t0))),
-             (abs(np.sin(4 * t0))),
              (abs(np.sin(5 * t0))),
+             (abs(np.sin(8 * t0))),
              ((np.sin(2 * t0) + 1) * 10.0)]
 
         # Create 10 circles of different lengths
-        lines = [None] * self._M
         freq_start = 1.0
         freq_step = 0.005
         self._r = [[]] * self._M  # the interpolated circle data, zeros for now, consisting of M*N circles s[M][1..5], all the same length
@@ -790,7 +789,7 @@ class Mind:
 
         # set rainbow colours for eeg and fft
         for c in range(0, len(eeg_lines)):
-            a = c/(self._channels-1.0)
+            a = c/self._channels
             colour = (0.7*(1 - a), 0.5*(1.0 - 2.0*abs(a - 0.5)), 0.7*a)
             eeg_lines[c].set_color(color=colour)
             eeg_lines[c].set_linewidth(0.4)
