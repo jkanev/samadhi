@@ -252,7 +252,8 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
         self._vertices = np.column_stack((self._x_numbers, self._y_numbers, self._red, self._green, self._blue)).ravel()
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self._buffer_id)
         gl.glBufferSubData(gl.GL_ARRAY_BUFFER, 0, self._vertices.nbytes, self._vertices)
-        gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
+        gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT | gl.GL_STENCIL_BUFFER_BIT)
+        gl.glClearColor(0.0, 0.0, 0.0, 1.0)
         if self._update_viewport:
             gl.glViewport(*self._viewport)
         gl.glUseProgram(self._shader_program_id)
@@ -467,6 +468,9 @@ class Mind:
                     self._gui_timer.timeout.connect(self._update_gui)
                     self._gui_timer.start(300)
 
+                    # connect to stream
+                    self._eeg_stream.connect(acquisition_delay=0.1, processing_flags="all")
+
                     # start data reading thread
                     thstr = threading.Thread(target=self._read_lsl)
                     thstr.start()
@@ -483,6 +487,7 @@ class Mind:
         # if we're disconnecting
         else:
             print("Disconnecting from LSL stream... ")
+            self._eeg_stream.disconnect()
             self._reset()
             print("... LSL stream disconnected.")
 
@@ -848,7 +853,6 @@ class Mind:
         print("Starting LSL reading.")
  
         # init data buffers
-        self._eeg_stream.connect(acquisition_delay=0.1, processing_flags="all")
         self._eeg_stream.filter(2, 70)
         self._eeg_stream.notch_filter(50)
         self._eeg_stream.get_data()  # reset the number of new samples after the filter is applied
