@@ -42,6 +42,8 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
     _softmax = 2.0
     _viewport = [0.0, 0.0, 0.0, 0.0]
     _update_viewport = False
+    _fullscreen = False    # current display
+    _toggle_fullscreen = None     # callback for onclick function
 
     _data_colours = [[np.array([0.0, 0.2, 0.0]), np.array([1.0, 0.0, 1.0])],
                      [np.array([1.0, 0.0, 0.0]), np.array([0.0, 0.2, 0.2])],
@@ -49,11 +51,11 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
                      [np.array([1.0, 1.0, 0.0]), np.array([0.0, 0.0, 0.2])],
                      [np.array([0.2, 0.0, 0.0]), np.array([0.0, 1.0, 1.0])]]
 
-    def __init__(self, get_data):
+    def __init__(self, get_data, toggle_fullscreen):
         super().__init__()
 
         self._get_data = get_data
-
+        self._toggle_fullscreen = toggle_fullscreen
         self._M = 30  # number of circles
         self._N = 200  # points per circle
 
@@ -274,6 +276,9 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
         self._timer.timeout.connect(self.update)
         self._timer.start(30)
 
+    def mouseReleaseEvent(self, dummy):
+        self._fullscreen = not self._fullscreen
+        self._toggle_fullscreen(self._fullscreen)
 
 class Mind:
     """
@@ -742,7 +747,7 @@ class Mind:
             p = (p + c6) % 1
             q = 1.0 - p
 
-    def _create_dancing_dots_display_opengl_tab(self, create, fullscreen=True):
+    def _create_dancing_dots_display_opengl_tab(self, create, fullscreen=False):
 
         if create:
 
@@ -759,7 +764,7 @@ class Mind:
                                               self._name + " -- Dancing Dots")
 
             # plt.plot(t[0], s[0][0])
-            self._ddots_ogl_wdg = OpenGLDancingDots(self.get_data)
+            self._ddots_ogl_wdg = OpenGLDancingDots(self.get_data, self.toggle_fullscreen_dancing_dots)
             if not fullscreen:
                 self._ddots_layout.addWidget(self._ddots_ogl_wdg, 0, 0, 1, 1)
 
@@ -775,6 +780,14 @@ class Mind:
                 print("Removing Dancing Dots display tab.")
                 self._parent_tabwidget.removeTab(self._parent_tabwidget.indexOf(self._ddots_tab))
             self._showing_ddots = False
+
+    def toggle_fullscreen_dancing_dots(self, fullscreen):
+        if not fullscreen:
+            self._ddots_layout.addWidget(self._ddots_ogl_wdg, 0, 0, 1, 1)
+        if fullscreen:
+            self._ddots_layout.removeWidget(self._ddots_ogl_wdg)
+            self._ddots_ogl_wdg.setParent(None)
+            self._ddots_ogl_wdg.showFullScreen()
 
     def _display_eeg_psd(self):
 
