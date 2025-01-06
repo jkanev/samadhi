@@ -1,284 +1,23 @@
-import ctypes
 # -*- coding:utf-8 -*-
-
 #!/usr/bin/python3
 
 import sys
 
-from OpenGL import GL as gl
 from .mainwindow import *
-from PyQt6 import QtCore, QtGui, QtWidgets, QtOpenGLWidgets
-from PyQt6.QtOpenGL import QOpenGLBuffer, QOpenGLShader, QOpenGLShaderProgram, QOpenGLTexture
+from PyQt6 import QtCore, QtWidgets
 import threading
 import numpy as np
 import time
 from mne_lsl.stream import StreamLSL as Stream
 from mne_lsl.lsl import resolve_streams
 from matplotlib import use as mpl_use
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, FigureManagerQT
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 import matplotlib.pyplot as plt
+from .display.layouts import DancingDotsLayout
+
 mpl_use("QtAgg")
 
 
-class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
-
-    _get_data = False
-    _x_numbers = False
-    _y_numbers = False
-    _r_numbers = False
-    _phi_numbers = False
-    _vertices = False
-    _red = False
-    _green = False
-    _blue = False
-    _timer = False
-    _p = 0.0
-    _q = 0.0
-    _r = []
-    _k = []
-    _shader_program_id = 0
-    _M = 0
-    _N = 0
-    _softmax = 2.0
-    _viewport = [0.0, 0.0, 0.0, 0.0]
-    _update_viewport = False
-    _fullscreen = False    # current display
-    _toggle_fullscreen = None     # callback for onclick function
-
-    _data_colours = [[np.array([0.0, 0.2, 0.0]), np.array([1.0, 0.0, 1.0])],
-                     [np.array([1.0, 0.0, 0.0]), np.array([0.0, 0.2, 0.2])],
-                     [np.array([0.2, 0.2, 0.0]), np.array([0.0, 0.0, 1.0])],
-                     [np.array([1.0, 1.0, 0.0]), np.array([0.0, 0.0, 0.2])],
-                     [np.array([0.2, 0.0, 0.0]), np.array([0.0, 1.0, 1.0])]]
-
-    def __init__(self, get_data, toggle_fullscreen):
-        super().__init__()
-
-        self._get_data = get_data
-        self._toggle_fullscreen = toggle_fullscreen
-        self._M = 30  # number of circles
-        self._N = 200  # points per circle
-
-        # k direction
-        # p in/out movement
-        self._p = 0.0
-        self._q = 1.0
-        self._k = np.array([0.0, 0.0, 0.0, 0.0, 0.0])
-
-        # initialise data structures
-        self._r_numbers = np.arange(0, self._M * 2.0*np.pi, 2.0*np.pi/self._N, dtype=np.float32)
-        self._r_numbers = np.mod(self._r_numbers, 2.0*np.pi)
-        self._phi_numbers = np.sin(self._r_numbers, dtype=np.float32)
-        self._x_numbers = np.zeros(self._r_numbers.shape, dtype=np.float32)
-        self._y_numbers = np.zeros(self._r_numbers.shape, dtype=np.float32)
-        self._red = np.zeros(self._r_numbers.shape, dtype=np.float32)
-        self._green = np.zeros(self._r_numbers.shape, dtype=np.float32)
-        self._blue = np.zeros(self._r_numbers.shape, dtype=np.float32)
-        self._vertices = False
-        self._buffer_id = 0
-        self._counter = 0.0
-
-        # Create sum of sine waves of different frequencies
-        dt = 0.005
-        t0 = np.arange(0, 5 * np.pi, dt)
-        f = [(abs(np.sin(1 * t0))),
-             (abs(np.sin(2 * t0))),
-             (abs(np.sin(3 * t0))),
-             (abs(np.sin(5 * t0))),
-             (abs(np.sin(8 * t0))),
-             ((np.sin(2 * t0) + 1) * 10.0)]
-
-        # Create 10 circles of different lengths
-        freq_start = 1.0
-        freq_step = 0.005
-        self._r = [[]] * self._M  # the interpolated circle data, zeros for now, consisting of M*N circles s[M][1..5], all the same length
-        s = [[]] * self._M        # the raw circle data, zeros for now, consisting of M*N circles s[M][1..5]
-        t = [[]] * self._M        # the base to plot against, will go from 0 to 2pi, t[M]
-        for m in range(0, self._M):
-            s[m] = [[]] * 5
-            freq = freq_start + m * freq_step  # our circle frequency
-            print(freq)
-            for n in range(0, 5):
-                s[m][n] = np.zeros(int((2 / freq) * np.pi / dt))
-            t[m] = [m for m in np.arange(0, 2 * np.pi, 2 * np.pi / self._N)]
-
-        # Average over all circles - pre-calculate parts of the sum of sines
-        for m in range(0, self._M):
-            for n in range(0, 5):
-                # only plot if you can fill the entire circle
-                for i in range(0, (len(f[n]) // len(s[m][n])) * len(s[m][n])):
-                    value = f[n][i] - 0.5
-                    index = i % len(s[m][n])
-                    s[m][n][index] += value  # add to front
-                    s[m][n][-(index + 1)] += value  # add to back, so beginning and end match and the circle stays closed
-
-        # downsample so all circles have the same length (N samples)
-        for m in range(0, self._M):
-            self._r[m] = [[]] * 5
-            for n in range(0, 5):
-                self._r[m][n] = np.zeros(self._N)
-                for i in range(0, self._N - 1):
-                    index = int(float(i) * (len(s[m][n]) - 1) / (self._N - 1.0))
-                    self._r[m][n][i] = s[m][n][index]
-                self._r[m][n][self._N - 1] = s[m][n][0]  # close the circle
-
-    def initializeGL(self):
-
-        # the vertex shader
-        vertex_shader_id = gl.glCreateShader(gl.GL_VERTEX_SHADER)
-        shader_code = (" #version 330 core \n"
-                       " layout (location = 0) in vec2 xyCoords; "
-                       " layout (location = 1) in vec3 vxColour; "
-                       " out vec4 vertColour; "
-                       " void main() { "
-                       "     gl_Position = vec4(xyCoords, 0.0, 1.0); "
-                       "     gl_PointSize = 6.0; "
-                       "     vertColour = vec4(vxColour, 1.0); "
-                       " } ")
-        gl.glShaderSource(vertex_shader_id, shader_code)
-        gl.glCompileShader(vertex_shader_id)
-        if gl.glGetShaderiv(vertex_shader_id, gl.GL_COMPILE_STATUS) == gl.GL_FALSE:
-            print("Error creating dancing dots vertex shader.")
-
-        # the fragment shader
-        fragment_shader_id = gl.glCreateShader(gl.GL_FRAGMENT_SHADER)
-        shader_code = (" #version 330 core \n"
-                       " in vec4 vertColour; "
-                       " out vec4 fragColour; "
-                       " void main() { "
-                       "     vec2 coords = gl_PointCoord * 2.0 - 1.0; "
-                       "     float dist = length(coords); "
-                       "     if (dist > 1.0) "
-                       "         discard; "
-                       "     fragColour = vertColour; "
-                       " } ")
-        gl.glShaderSource(fragment_shader_id, shader_code)
-        gl.glCompileShader(fragment_shader_id)
-        if gl.glGetShaderiv(fragment_shader_id, gl.GL_COMPILE_STATUS) == gl.GL_FALSE:
-            print("Error creating dancing dots fragment shader.")
-
-        # the shader program, linking both shaders
-        self._shader_program_id = gl.glCreateProgram()
-        gl.glAttachShader(self._shader_program_id, vertex_shader_id)
-        gl.glAttachShader(self._shader_program_id, fragment_shader_id)
-        gl.glLinkProgram(self._shader_program_id)
-        if gl.glGetProgramiv(self._shader_program_id, gl.GL_LINK_STATUS) == gl.GL_FALSE:
-            print("Error linking dancing dots shaders.")
-
-        # declare the buffer to be a vertex array
-        self._vertices = np.column_stack((self._x_numbers, self._y_numbers, self._red, self._green, self._blue)).ravel()
-
-        self._buffer_id = gl.glGenBuffers(1)
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self._buffer_id)
-        gl.glBufferData(gl.GL_ARRAY_BUFFER, self._vertices.nbytes, self._vertices, gl.GL_DYNAMIC_DRAW)
-        size = self._vertices.itemsize
-        gl.glVertexAttribPointer(0, 2, gl.GL_FLOAT, gl.GL_FALSE, 5*size, ctypes.c_void_p(0))
-        gl.glEnableVertexAttribArray(0)
-        gl.glVertexAttribPointer(1, 3, gl.GL_FLOAT, gl.GL_FALSE, 5*size, ctypes.c_void_p(2 * size))
-        gl.glEnableVertexAttribArray(1)
-        gl.glUseProgram(self._shader_program_id)
-        gl.glPointSize(6)
-
-    def paintGL(self):
-
-        # cX - amount of frequency ring fX for each frequency X (out of five)
-        freqs = self._get_data()
-        [c1, c2, c3, c4, c5] = (freqs**self._softmax) / (freqs**self._softmax).sum()
-        c6 = 0.1 * (c1 - c2 + c3 - c4 + c5)  # c6 - amount of in/out movement
-        print("Frequency bands: {:.2f}, {:.2f}, {:.2f}, {:.2f}, {:.2f}".format(c1, c2, c3, c4, c5), end='\r')
-
-        # k[X] - turning speed and direction of each frequency ring
-        self._k += 0.5*np.array([c1, -c2, c3, -c4, c5])
-        kn = np.floor(self._k)  # left index into ring
-        km = kn + 1  # right index into ring
-        kp = km - self._k  # left amount
-        kq = self._k - kn  # right amount
-
-        # plot curves
-        last_data = []
-        for m in range(0, self._M):
-
-            # offset = np.sqrt((M-m))
-            offset = 1.3*(self._M - m)
-            offset = np.sqrt(np.sqrt(offset * offset * offset)) / self._M # x^(3/4)
-
-            # soft rolling of circles by interpolating between floor(k) and ceil(k)
-            data = (c1 * (np.roll(self._r[m][0], kn[0]) * kp[0] + np.roll(self._r[m][0], km[0]) * kq[0])
-                    + c2 * (np.roll(self._r[m][1], kn[1]) * kp[1] + np.roll(self._r[m][1], km[1]) * kq[1])
-                    + c3 * (np.roll(self._r[m][2], kn[2]) * kp[2] + np.roll(self._r[m][2], km[2]) * kq[2])
-                    + c4 * (np.roll(self._r[m][3], kn[3]) * kp[3] + np.roll(self._r[m][3], km[3]) * kq[3])
-                    + c5 * (np.roll(self._r[m][4], kn[4]) * kp[4] + np.roll(self._r[m][4], km[4]) * kq[4])
-                    + 1)
-            data /= data.max()
-            data *= offset
-            data += offset
-            try:
-                if len(last_data):
-                    fr = m*self._N         # from offset
-                    to = (m + 1)*self._N   # to offset
-                    self._phi_numbers[fr:to] = self._p * last_data + self._q * data
-                    colour_in =   c1 * self._data_colours[0][0] \
-                                + c2 * self._data_colours[1][0] \
-                                + c3 * self._data_colours[2][0] \
-                                + c4 * self._data_colours[3][0] \
-                                + c5 * self._data_colours[4][0]
-                    colour_out =  c1 * self._data_colours[0][1] \
-                                + c2 * self._data_colours[1][1] \
-                                + c3 * self._data_colours[2][1] \
-                                + c4 * self._data_colours[3][1] \
-                                + c5 * self._data_colours[4][1]
-                    if m == 1:
-                        self._red[fr:to] = colour_out[0] * self._q
-                        self._green[fr:to] = colour_out[1] * self._q
-                        self._blue[fr:to] = colour_out[2] * self._q
-                    elif m == self._M - 1:
-                        self._red[fr:to] = colour_in[0] * self._p
-                        self._green[fr:to] = colour_in[1] * self._p
-                        self._blue[fr:to] = colour_in[2] * self._p
-                    else:
-                        c_in = m / self._M
-                        c_out = 1.0 - c_in
-                        colour = c_in * colour_in + c_out * colour_out
-                        self._red[fr:to] = colour[0]
-                        self._green[fr:to] = colour[1]
-                        self._blue[fr:to] = colour[2]
-            except BaseException as e:
-                print("Plot exception {} for curve n={}".format(e, m))
-            last_data = data
-        self._p = (self._p + c6) % 1
-        self._q = 1.0 - self._p
-
-        # convert to x/y/colour data and push to graphic card
-        self._y_numbers = (self._phi_numbers * np.cos(self._r_numbers))
-        self._x_numbers = self._phi_numbers * np.sin(self._r_numbers)
-        self._vertices = np.column_stack((self._x_numbers, self._y_numbers, self._red, self._green, self._blue)).ravel()
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self._buffer_id)
-        gl.glBufferSubData(gl.GL_ARRAY_BUFFER, 0, self._vertices.nbytes, self._vertices)
-        gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT | gl.GL_STENCIL_BUFFER_BIT)
-        gl.glClearColor(0.0, 0.0, 0.0, 1.0)
-        if self._update_viewport:
-            gl.glViewport(*self._viewport)
-        gl.glUseProgram(self._shader_program_id)
-        gl.glDrawArrays(gl.GL_POINTS, 0, len(self._x_numbers))
-
-    def resizeGL(self, width, height):
-        size = min(width, height)
-        x = (width - size) // 2
-        y = (height - size) // 2
-        gl.glUseProgram(self._shader_program_id)
-        gl.glViewport(x, y, size, size)
-        self._viewport = [x, y, size, size]
-        self._update_viewport = True
-        print(f"glViewport set to x={x}, y={y}, width={size}, height={size}")
-
-    def start(self):
-        self._timer = QtCore.QTimer()
-        self._timer.timeout.connect(self.update)
-        self._timer.start(30)
-
-    def mouseReleaseEvent(self, dummy):
-        self._fullscreen = not self._fullscreen
-        self._toggle_fullscreen(self._fullscreen)
 
 class Mind:
     """
@@ -291,7 +30,6 @@ class Mind:
     # data streaming related
     _streaming = False   # whether we're streaming currently
     _showing_eegpsd = False     # whether we're showing the eeg/psd tab
-    _showing_ddots = False   # whether we're showing the dancing dots display
     _data_seconds = 10.0  # how much data do we have in the _eeg_data array
     _sampling_rate = 0   # sampling rate of eeg data
     _samples = 0         # seconds times sampling rate
@@ -352,11 +90,7 @@ class Mind:
     _hst_height = 110e-4
 
     # dancing dots display
-    _ddots_layout = False
     _ddots_tab = False
-    _ddots_canvas = False
-    _ddots_axes = False
-    _ddots_ogl_wdg = False
 
     def __init__(self, combobox_streamname, lineedit_name, checkbox_connect, checkbox_analyse_psd,
                        checkbox_display_eegpsd, checkbox_visualisation_ddots,
@@ -382,9 +116,9 @@ class Mind:
 
         # Connect slot eeg stream
         self._checkbox_connect_lsl.clicked.connect(self._connect_eeg_stream)
-        self._checkbox_display_eegpsd.clicked.connect(self._create_eegpsd_display_tab)
+        self._checkbox_display_eegpsd.clicked.connect(self._create_eegpsd_tab)
         # TODO
-        self._checkbox_visualisation_ddots.clicked.connect(self._create_dancing_dots_display_opengl_tab)
+        self._checkbox_visualisation_ddots.clicked.connect(self._create_dancing_dots_tab)
         #self._checkbox_visualisation_ddots.clicked.connect(self._create_dancing_dots_display_tab)
 
     def __del__(self):
@@ -437,8 +171,8 @@ class Mind:
         self._lsl_label.setEnabled(False)
         self._checkbox_connect_lsl.setText("Click to connect")
         self._eeg_label.setEnabled(False)
-        self._create_eegpsd_display_tab(False)
-        self._create_dancing_dots_display_opengl_tab(False)
+        self._create_eegpsd_tab(False)
+        self._create_dancing_dots_tab(False)
 
     def _connect_eeg_stream(self, connect):
         """
@@ -496,7 +230,7 @@ class Mind:
             self._reset()
             print("... LSL stream disconnected.")
 
-    def _create_eegpsd_display_tab(self, create):
+    def _create_eegpsd_tab(self, create):
 
         if create:
 
@@ -572,222 +306,26 @@ class Mind:
                 self._parent_tabwidget.removeTab(self._parent_tabwidget.indexOf(self._eegpsd_tab))
             self._showing_eegpsd = False
 
-    def _create_dancing_dots_display_tab(self, create):
+    def _create_dancing_dots_tab(self, create):
 
         if create:
 
             # note
             print("Creating Dancing Dots display tab.")
 
-            # create widgets
+            # create tab
             self._ddots_tab = QtWidgets.QWidget()
-            self._ddots_layout = QtWidgets.QGridLayout(self._ddots_tab)
-            sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Policy.Maximum, QtWidgets.QSizePolicy.Policy.Maximum)
-            self._ddots_tab.setSizePolicy(sizePolicy)
+
+            # add dancing dot display layout to tab
+            DancingDotsLayout(self._ddots_tab, self.get_data)
             self._parent_tabwidget.addTab(self._ddots_tab, "")
             self._parent_tabwidget.setTabText(self._parent_tabwidget.indexOf(self._ddots_tab),
                                               self._name + " -- Dancing Dots")
-
-            # plt.plot(t[0], s[0][0])
-            ylim = 32
-            plt.ioff()
-            fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
-            fig.subplots_adjust(top=1, bottom=0.0)
-            self._ddots_canvas = FigureCanvasQTAgg(fig)
-            self._ddots_axes = ax
-            self._ddots_layout.addWidget(self._ddots_canvas, 0, 0, 1, 1)
-            ax.grid(False)
-            ax.set_xticks([])
-            ax.set_yticks([])
-            ax.set_theta_zero_location("N")
-            ax.set_ylim(0.0, ylim)
-            ax.set_facecolor('k')
-            fig.set_facecolor('k')
-
-            # start display thread
-            time.sleep(1)
-            self._showing_ddots = True
-            # TODO
-            thdsp = threading.Thread(target=self._display_dancing_dots_opengl)
-            # thdsp = threading.Thread(target=self._display_dancing_dots)
-            thdsp.start()
 
         else:
             if self._ddots_tab:
                 print("Removing Dancing Dots display tab.")
                 self._parent_tabwidget.removeTab(self._parent_tabwidget.indexOf(self._ddots_tab))
-            self._showing_ddots = False
-
-    def _display_dancing_dots(self):
-
-        # starting thread
-        print("Starting EEG/PSD display.")
-        while not len(self._eeg_data)\
-                or not len(self._fft_data)\
-                or not len(self._bnd_data)\
-                or not len(self._hst_data):
-            time.sleep(0.2)
-
-        # Create sum of sine waves of different frequencies
-        dt = 0.005
-        t0 = np.arange(0, 5 * np.pi, dt)
-        f = [(abs(np.sin(1 * t0))),
-             (abs(np.sin(2 * t0))),
-             (abs(np.sin(3 * t0))),
-             (abs(np.sin(4 * t0))),
-             (abs(np.sin(5 * t0))),
-             ((np.sin(2 * t0) + 1) * 10.0)]
-
-        # Create 10 circles of different lengths
-        M = 40  # number of circles
-        N = 200  # points per circle
-        lines = [None] * M
-        freq_start = 1.0
-        freq_step = 0.005
-        r = [[]] * M  # the interpolated circle data, zeros for now, consisting of M*N circles s[M][1..5], all the same length
-        s = [[]] * M  # the raw circle data, zeros for now, consisting of M*N circles s[M][1..5]
-        t = [[]] * M  # the base to plot against, will go from 0 to 2pi, t[M]
-        for m in range(0, M):
-            s[m] = [[]] * 5
-            freq = freq_start + m * freq_step  # our circle frequency
-            print(freq)
-            for n in range(0, 5):
-                s[m][n] = np.zeros(int((2 / freq) * np.pi / dt))
-            t[m] = [m for m in np.arange(0, 2 * np.pi, 2 * np.pi / N)]
-
-        # Average over all circles - pre-calculate parts of the sum of sines
-        for m in range(0, M):
-            for n in range(0, 5):
-                # only plot if you can fill the entire circle
-                for i in range(0, (len(f[n]) // len(s[m][n])) * len(s[m][n])):
-                    value = f[n][i] - 0.5
-                    index = i % len(s[m][n])
-                    s[m][n][index] += value  # add to front
-                    s[m][n][-(index + 1)] += value  # add to back, so beginning and end match and the circle stays closed
-
-        # downsample so all circles have the same length (N samples)
-        for m in range(0, M):
-            r[m] = [[]] * 5
-            for n in range(0, 5):
-                r[m][n] = np.zeros(N)
-                for i in range(0, N - 1):
-                    index = int(float(i) * (len(s[m][n]) - 1) / (N - 1.0))
-                    r[m][n][i] = s[m][n][index]
-                r[m][n][N - 1] = s[m][n][0]  # close the circle
-
-        first = True
-        p = 0.0
-        q = 1.0
-        k = np.array([0.0, 0.0, 0.0, 0.0, 0.0])
-        while self._streaming and self._showing_ddots:
-
-            # k direction
-            # p in/out movement
-
-            # cX - amount of frequency ring fX for each frequency X (out of five)
-            c1 = self._bnd_data[0]
-            c2 = self._bnd_data[1]
-            c3 = self._bnd_data[2]
-            c4 = self._bnd_data[3]
-            c5 = self._bnd_data[3]
-            c6 = 0.2*(c1 - c2 + c3 - c4 + c5)     # c6 - amount of in/out movement
-            print("Frequency bands: {:.2f}, {:.2f}, {:.2f}, {:.2f}, {:.2f}".format(c1, c2, c3, c4, c5), end='\r')
-
-            # k[X] - turning speed and direction of each frequency ring
-            k += np.array([c1, -c2, c3, -c4, c5])
-            kn = np.floor(k)   # left index into ring
-            km = kn + 1        # right index into ring
-            kp = km - k        # left amount
-            kq = k - kn        # right amount
-
-            # plot curves
-            last_data = []
-            for m in range(0, M):
-                # offset = np.sqrt((M-m))
-                offset = M - m
-                offset = np.sqrt(np.sqrt(offset * offset * offset))  # x^(3/4)
-
-                # soft rolling of circles by interpolating between floor(k) and ceil(k)
-                data = (  c1 * (np.roll(r[m][0], kn[0]) * kp[0] + np.roll(r[m][0], km[0]) * kq[0])
-                        + c2 * (np.roll(r[m][1], kn[1]) * kp[1] + np.roll(r[m][1], km[1]) * kq[1])
-                        + c3 * (np.roll(r[m][2], kn[2]) * kp[2] + np.roll(r[m][2], km[2]) * kq[2])
-                        + c4 * (np.roll(r[m][3], kn[3]) * kp[3] + np.roll(r[m][3], km[3]) * kq[3])
-                        + c5 * (np.roll(r[m][4], kn[4]) * kp[4] + np.roll(r[m][4], km[4]) * kq[4])
-                        + 1)
-                data /= data.max()
-                data *= offset
-                data += offset
-                if first:
-                    try:
-                        if len(last_data):
-                            [lines[m]] = self._ddots_axes.plot(t[m],
-                                                               p * last_data + q * data,
-                                                               '.',
-                                                               color=(m / M, 0.5 * m / M, 1 - m / M))
-                    except BaseException as e:
-                        print("Plot exception {} for curve n={}".format(e, m))
-                else:
-                    try:
-                        if len(last_data):
-                            lines[m].set_ydata(p * last_data + q * data)
-                            if m == 1:
-                                lines[m].set_color(
-                                    (c2 * q * m / M, c3 * q * 0.5 * m / M, (1.0 - 0.5 * c4) * q * (1 - m / M)))
-                            elif m == M - 1:
-                                lines[m].set_color(
-                                    (c2 * p * m / M, c3 * p * 0.5 * m / M, (1.0 - 0.5 * c4) * p * (1 - m / M)))
-                            else:
-                                lines[m].set_color((c2 * m / M, c3 * 0.5 * m / M, (1.0 - 0.5 * c4) * (1 - m / M)))
-                    except BaseException as e:
-                        print("Plot exception {} for curve n={}".format(e, m))
-                last_data = data
-            self._ddots_canvas.draw()
-            first = False
-            time.sleep(0.01)
-            p = (p + c6) % 1
-            q = 1.0 - p
-
-    def _create_dancing_dots_display_opengl_tab(self, create, fullscreen=False):
-
-        if create:
-
-            # note
-            print("Creating Dancing Dots display tab.")
-
-            # create widgets
-            self._ddots_tab = QtWidgets.QWidget()
-            self._ddots_layout = QtWidgets.QGridLayout(self._ddots_tab)
-            sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Policy.Maximum, QtWidgets.QSizePolicy.Policy.Maximum)
-            self._ddots_tab.setSizePolicy(sizePolicy)
-            self._parent_tabwidget.addTab(self._ddots_tab, "")
-            self._parent_tabwidget.setTabText(self._parent_tabwidget.indexOf(self._ddots_tab),
-                                              self._name + " -- Dancing Dots")
-
-            # plt.plot(t[0], s[0][0])
-            self._ddots_ogl_wdg = OpenGLDancingDots(self.get_data, self.toggle_fullscreen_dancing_dots)
-            if not fullscreen:
-                self._ddots_layout.addWidget(self._ddots_ogl_wdg, 0, 0, 1, 1)
-
-            # start display thread
-            time.sleep(1)
-            self._showing_ddots = True
-            self._ddots_ogl_wdg.start()
-            if fullscreen:
-                self._ddots_ogl_wdg.showFullScreen()
-
-        else:
-            if self._ddots_tab:
-                print("Removing Dancing Dots display tab.")
-                self._parent_tabwidget.removeTab(self._parent_tabwidget.indexOf(self._ddots_tab))
-            self._showing_ddots = False
-
-    def toggle_fullscreen_dancing_dots(self, fullscreen):
-        if not fullscreen:
-            self._ddots_layout.addWidget(self._ddots_ogl_wdg, 0, 0, 1, 1)
-        if fullscreen:
-            self._ddots_layout.removeWidget(self._ddots_ogl_wdg)
-            self._ddots_ogl_wdg.setParent(None)
-            self._ddots_ogl_wdg.showFullScreen()
 
     def _display_eeg_psd(self):
 
@@ -957,7 +495,6 @@ class Mind:
 
     def get_data(self):
         return self._bnd_data
-
 
 class SamadhiWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     """
