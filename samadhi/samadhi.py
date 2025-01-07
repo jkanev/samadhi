@@ -63,6 +63,7 @@ class Mind:
     _checkbox_display_eegpsd = False
     _checkbox_visualisation_ddots = False
     _parent_tabwidget = False
+    _available_streams = []
 
     # info labels
     _gui_lock = threading.Lock()
@@ -107,19 +108,19 @@ class Mind:
         self._bnd_label = bnd_info
         self._parent_tabwidget = parent_tabwidget
 
-        # Fill values
-        streams = resolve_streams(timeout=5)
-        for s in streams:
-            identifier = "{} | {} | {} Channels | {} Hz" \
-                         "".format(s.name, s.source_id, s.n_channels, s.sfreq)
-            self._combobox_streamname.addItem(identifier)
-
         # Connect slot eeg stream
         self._checkbox_connect_lsl.clicked.connect(self._connect_eeg_stream)
         self._checkbox_display_eegpsd.clicked.connect(self._create_eegpsd_tab)
-        # TODO
         self._checkbox_visualisation_ddots.clicked.connect(self._create_dancing_dots_tab)
-        #self._checkbox_visualisation_ddots.clicked.connect(self._create_dancing_dots_display_tab)
+
+        # start stream searching thread (extra, otherwise it blocks to GUI)
+        thlsl = threading.Thread(target=self._find_lsl_streams)
+        thlsl.start()
+
+        # start gui update thread, filling stream selection box
+        self._gui_timer = QtCore.QTimer()
+        self._gui_timer.timeout.connect(self._update_gui)
+        self._gui_timer.start(300)
 
     def __del__(self):
         self._connect_eeg_stream(False)
@@ -181,54 +182,54 @@ class Mind:
         :return: void
         """
 
-        # if we're connecting
-        if connect:
+        # find what's selected
+        stream_name = self._combobox_streamname.currentText()
+        if stream_name:
 
-            # first resolve an EEG stream on the lab network
-            print("Connecting to LSL stream... ")
-            self._name = self._lineedit_name.text()
-            streams = resolve_streams()
+            # if we're connecting
+            if connect and not self._streaming:
 
-            # create a new inlet to read from the stream
-            for s in streams:
-                s_name, s_id, s_channels, s_rate = self._combobox_streamname.currentText().split(' | ')
-                if s.source_id == s_id:
+                    # first resolve an EEG stream on the lab network
+                    print("Connecting to LSL stream... ")
+                    self._name = self._lineedit_name.text() or "No Name"
+                    streams = resolve_streams()
 
-                    # set gui info
-                    self._channels = s.n_channels
-                    self._sampling_rate = s.sfreq
-                    self._samples = int(self._data_seconds * self._sampling_rate)
-                    self._eeg_stream = Stream(self._data_seconds, name=s_name, stype=s.stype, source_id=s.source_id)
-                    self._checkbox_connect_lsl.setText("Connected")
+                    # create a new inlet to read from the stream
+                    for s in streams:
+                        s_name, s_id, s_channels, s_rate = stream_name.split(' | ')
+                        if s.source_id == s_id:
 
-                    # start GUI update function (in same thread)
-                    self._streaming = True
-                    self._gui_timer = QtCore.QTimer()
-                    self._gui_timer.timeout.connect(self._update_gui)
-                    self._gui_timer.start(300)
+                            # set gui info
+                            self._channels = s.n_channels
+                            self._sampling_rate = s.sfreq
+                            self._samples = int(self._data_seconds * self._sampling_rate)
+                            self._eeg_stream = Stream(self._data_seconds, name=s_name, stype=s.stype, source_id=s.source_id)
+                            self._checkbox_connect_lsl.setText("Connected")
 
-                    # connect to stream
-                    self._eeg_stream.connect(acquisition_delay=0.1, processing_flags="all")
+                            # connect to stream
+                            self._eeg_stream.connect(acquisition_delay=0.1, processing_flags="all")
+                            self._streaming = True
 
-                    # start data reading thread
-                    thstr = threading.Thread(target=self._read_lsl)
-                    thstr.start()
+                            # start data reading thread
+                            thstr = threading.Thread(target=self._read_lsl)
+                            thstr.start()
 
-                    # start analysis thread
-                    thanal = threading.Thread(target=self._analyse_psd)
-                    thanal.start()
+                            # start analysis thread
+                            thanal = threading.Thread(target=self._analyse_psd)
+                            thanal.start()
 
-                    # enable checkbox
-                    self._checkbox_display_eegpsd.setEnabled(True)
-                    self._checkbox_visualisation_ddots.setEnabled(True)
-                    print("... LSL stream connected.")
+                            # enable checkbox
+                            self._checkbox_display_eegpsd.setEnabled(True)
+                            self._checkbox_visualisation_ddots.setEnabled(True)
+                            print("... LSL stream connected.")
 
-        # if we're disconnecting
-        else:
-            print("Disconnecting from LSL stream... ")
-            self._eeg_stream.disconnect()
-            self._reset()
-            print("... LSL stream disconnected.")
+            # if we're disconnecting
+            elif not connect and self._streaming:
+                print("Disconnecting from LSL stream... ")
+                self._streaming = False   # stop the display threads before we disconnect the stream
+                self._eeg_stream.disconnect()
+                self._reset()
+                print("... LSL stream disconnected.")
 
     def _create_eegpsd_tab(self, create):
 
@@ -487,11 +488,31 @@ class Mind:
         # done.
         print("Ending analysis.")
 
+    def _find_lsl_streams(self):
+        while True:
+            time.sleep(1.0)
+            with self._gui_lock:
+                if not self._streaming:
+                    streams = resolve_streams(timeout=1)
+                    self._available_streams = ["{} | {} | {} Channels | {} Hz"
+                                               "".format(s.name, s.source_id, s.n_channels, s.sfreq) for s in streams]
+
     def _update_gui(self):
         with self._gui_lock:
-            self._lsl_label.setText(self._lsl_info)
-            self._bnd_label.setText(self._bnd_info)
-            self._eeg_label.setText(self._eeg_info)
+            if self._streaming:
+                self._lsl_label.setText(self._lsl_info)
+                self._bnd_label.setText(self._bnd_info)
+                self._eeg_label.setText(self._eeg_info)
+            else:
+                entries = []
+                for n in range(self._combobox_streamname.count()):
+                    entries += [self._combobox_streamname.itemText(n)]
+                for e in entries:
+                    if e not in self._available_streams:
+                        self._combobox_streamname.removeItem(self._combobox_streamname.findText(e))
+                for s in self._available_streams:
+                    if s not in entries:
+                        self._combobox_streamname.addItem(s)
 
     def get_data(self):
         return self._bnd_data
