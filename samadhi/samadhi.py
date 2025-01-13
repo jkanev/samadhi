@@ -248,7 +248,14 @@ class Mind:
                                               self._name + " -- EEG / Spectrum")
 
             # channel names
-            c_names = ['C{}'.format(n+1) for n in range(0, self._channels)]
+            c_names = self._eeg_stream.ch_names or ['C{}'.format(n+1) for n in range(0, self._channels)]
+
+            # colours
+            frame_c = (0.25, 0.25, 0.25)
+            outer_c = self._parent_tabwidget.parent().parent().palette().base().color().name()
+            passepartout_c = self._parent_tabwidget.parent().parent().palette().button().color().name() #(0.25, 0.25, 0.25)
+            label_c = (0.8, 0.8, 0.8)
+            title_c = (0.9, 0.9, 0.9)
 
             # first eeg plot
             figure = plt.figure()
@@ -257,8 +264,12 @@ class Mind:
             self._eegpsd_layout.addWidget(self._eeg_canvas, 0, 0, 1, 1)
             self._eeg_axes.set_ylim(bottom=0.0, top=self._channels + 2)
             self._eeg_axes.set_xticks([])
-            self._eeg_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names)
-            self._eeg_axes.set_title('{} -- EEG over {:0.1f} Seconds'.format(self._name, self._data_seconds))
+            self._eeg_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names, color=label_c)
+            self._eeg_axes.set_title('{} -- EEG over {:0.1f} Seconds'.format(self._name, self._data_seconds),
+                                     color=title_c)
+            self._eeg_axes.set_facecolor(outer_c)
+            figure.set_facecolor(passepartout_c)
+            plt.setp(self._eeg_axes.spines.values(), color=frame_c)
 
             # first psd plot
             figure = plt.figure()
@@ -267,8 +278,11 @@ class Mind:
             self._eegpsd_layout.addWidget(self._fft_canvas, 0, 1, 1, 1)
             self._fft_axes.set_ylim(bottom=0.0, top=self._channels + 2)
             self._fft_axes.set_xscale('log')
-            self._fft_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names)
-            self._fft_axes.set_title('Current PSD')
+            self._fft_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names, color=label_c)
+            self._fft_axes.set_title('Current PSD', color=title_c)
+            self._fft_axes.set_facecolor(outer_c)
+            figure.set_facecolor(passepartout_c)
+            plt.setp(self._fft_axes.spines.values(), color=frame_c)
 
             # bandpass history plot
             figure = plt.figure()
@@ -277,8 +291,12 @@ class Mind:
             self._eegpsd_layout.addWidget(self._hst_canvas, 1, 0, 1, 1)
             self._hst_axes.set_ylim([-0.1, 5.1])
             self._hst_axes.set_xticks([])
-            self._hst_axes.set_yticks([0, 1, 2, 3, 4], ['δ', 'θ', 'α', 'β', 'γ'])
-            self._hst_axes.set_title('{} -- PSD History over {} minutes'.format(self._name, self._history_length/60.0))
+            self._hst_axes.set_yticks([0, 1, 2, 3, 4], ['δ', 'θ', 'α', 'β', 'γ'], color=label_c)
+            self._hst_axes.set_title('{} -- PSD History over {} minutes'.format(self._name, self._history_length/60.0),
+                                     color=title_c)
+            self._hst_axes.set_facecolor(outer_c)
+            figure.set_facecolor(passepartout_c)
+            plt.setp(self._hst_axes.spines.values(), color=frame_c)
 
             # bandpass bar graph
             figure = plt.figure()
@@ -286,9 +304,12 @@ class Mind:
             self._bnd_axes = figure.add_subplot(111)
             self._eegpsd_layout.addWidget(self._bnd_canvas, 1, 1, 1, 1)
             self._bnd_axes.set_ylim([0.0, 1.1])
-            self._bnd_axes.set_xticks([1, 2, 3, 4, 5], ['δ', 'θ', 'α', 'β', 'γ'])
+            self._bnd_axes.set_xticks([1, 2, 3, 4, 5], ['δ', 'θ', 'α', 'β', 'γ'], color=label_c)
             self._bnd_axes.set_yticks([])
-            self._bnd_axes.set_title('Frequency Band Power'.format(self._data_seconds))
+            self._bnd_axes.set_title('Frequency Band Power'.format(self._data_seconds), color=title_c)
+            self._bnd_axes.set_facecolor(outer_c)
+            figure.set_facecolor(passepartout_c)
+            plt.setp(self._bnd_axes.spines.values(), color=frame_c)
 
             self._eegpsd_layout.setColumnStretch(0, 3)
             self._eegpsd_layout.setColumnStretch(1, 1)
@@ -347,7 +368,7 @@ class Mind:
         # set rainbow colours for eeg and fft
         for c in range(0, len(eeg_lines)):
             a = c/self._channels
-            colour = (0.7*(1 - a), 0.5*(1.0 - 2.0*abs(a - 0.5)), 0.7*a)
+            colour = (0.3+0.7*(1 - a), 0.5+0.5*(1.0 - 2.0*abs(a - 0.5)), 0.3+0.7*a)
             eeg_lines[c].set_color(color=colour)
             eeg_lines[c].set_linewidth(0.4)
             fft_lines[c].set_color(color=colour)
@@ -356,7 +377,7 @@ class Mind:
         # set rainbow colours for frequency bands
         for n in range(0, 5):
             a = n/4.0
-            colour = (0.7*(1 - a), 0.5*(1.0 - 2.0*abs(a - 0.5)), 0.7*a)
+            colour = (0.3+0.7*(1 - a), 0.5+0.5*(1.0 - 2.0*abs(a - 0.5)), 0.3+0.7*a)
             bnd_bars[n].set(color=colour)
             hst_lines[n].set_color(color=colour)
             hst_lines[n].set_linewidth(0.5)
