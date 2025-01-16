@@ -549,7 +549,7 @@ class Mind:
         is_relative = True
         is_relative_total = True
         normalisation = [1.0, 2.0, 4.0, 8.0, 16.0]
-        is_normalised = False
+        is_normalised = True
         # start streaming loop
         while self._streaming:
             try:
@@ -591,9 +591,9 @@ class Mind:
     def _find_sources(self):
         while self._resolving:
             time.sleep(1.0)
-            with self._gui_lock:
-                if not self._streaming:
-                    streams = resolve_streams(timeout=1)
+            if not self._streaming:
+                streams = resolve_streams(timeout=1)
+                with self._gui_lock:
                     self._available_streams = ["LSL {} | {} | {} Channels | {} Hz"
                                                "".format(s.name, s.source_id, s.n_channels, s.sfreq)
                                                for s in streams] + ["SML Simulated data / selftest"]

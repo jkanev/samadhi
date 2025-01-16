@@ -39,12 +39,13 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
     green = np.array([0.0, 0.6, 0.0])
     blue = np.array([0.0, 0.0, 1.0])
     purple = np.array([0.8, 0.0, 0.4])
+    black = np.array([0.0, 0.0, 0.0])
     dark = 0.3
-    _data_colours = [[dark*red, blue],
+    _data_colours = [[yellow, dark*red],
+                     [red, dark*blue],
                      [orange, dark*purple],
-                     [dark*yellow, red],
-                     [green, dark*blue],
-                     [dark*blue, orange]]
+                     [green, black],
+                     [black, red]]
 
     def __init__(self, get_data, toggle_fullscreen):
         super().__init__()
