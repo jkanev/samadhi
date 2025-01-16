@@ -250,7 +250,7 @@ class Mind:
 
             print("Disconnecting from LSL stream... ")
             self._streaming = False   # stop the display threads before we disconnect the stream
-            self._eeg_stream.disconnect()
+            self._eeg_stream and self._eeg_stream.disconnect()
             self._reset()
             print("... LSL stream disconnected.")
 
@@ -509,7 +509,7 @@ class Mind:
 
         # start streaming loop
         self._lsl_label.setEnabled(True)
-        f_window = np.array([0,2,4,6,8])
+        f_window = np.array([0,0,0,0,0])
         t_window = np.arange(int(samples/10))
         cycle = 0
         while self._streaming:
