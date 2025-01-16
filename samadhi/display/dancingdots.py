@@ -31,11 +31,20 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
     _fullscreen = False    # current display
     _toggle_fullscreen = None     # callback for onclick function
 
-    _data_colours = [[np.array([0.0, 0.2, 0.0]), np.array([1.0, 0.0, 1.0])],
-                     [np.array([1.0, 0.0, 0.0]), np.array([0.0, 0.2, 0.2])],
-                     [np.array([0.2, 0.2, 0.0]), np.array([0.0, 0.0, 1.0])],
-                     [np.array([0.1, 0.8, 0.0]), np.array([0.0, 0.0, 0.8])],
-                     [np.array([0.2, 0.0, 0.0]), np.array([0.0, 1.0, 1.0])]]
+    # inside:  red / yellow / blue / orange / green
+    # outside: orange / green / red / yellow / blue
+    red = np.array([0.8, 0.0, 0.0])
+    orange = np.array([1.0, 0.5, 0.0])
+    yellow = np.array([0.6, 0.6, 0.0])
+    green = np.array([0.0, 0.6, 0.0])
+    blue = np.array([0.0, 0.0, 1.0])
+    purple = np.array([0.8, 0.0, 0.4])
+    dark = 0.3
+    _data_colours = [[dark*red, blue],
+                     [orange, dark*purple],
+                     [dark*yellow, red],
+                     [green, dark*blue],
+                     [dark*blue, orange]]
 
     def __init__(self, get_data, toggle_fullscreen):
         super().__init__()
@@ -174,7 +183,7 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
         print("Frequency bands: {:.2f}, {:.2f}, {:.2f}, {:.2f}, {:.2f}".format(c1, c2, c3, c4, c5), end='\r')
 
         # k[X] - turning speed and direction of each frequency ring
-        self._k += 0.5*np.array([c1, -c2, c3, -c4, c5])
+        self._k += 0.5*np.array([(5.0/5.0)*c1, (-4.0/5.0)*c2, (3.0/5.0)*c3, (-2.0/5.0)*c4, (1.0/5.0)*c5])
         kn = np.floor(self._k)  # left index into ring
         km = kn + 1  # right index into ring
         kp = km - self._k  # left amount
