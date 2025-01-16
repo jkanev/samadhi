@@ -115,7 +115,7 @@ class Mind:
         self._checkbox_visualisation_ddots.clicked.connect(self._create_dancing_dots_tab)
 
         # start stream searching thread (extra, otherwise it blocks to GUI)
-        thlsl = threading.Thread(target=self._find_lsl_streams)
+        thlsl = threading.Thread(target=self._find_sources)
         thlsl.start()
 
         # start gui update thread, filling stream selection box
@@ -191,41 +191,59 @@ class Mind:
 
             # find what's selected
             stream_name = self._combobox_streamname.currentText()
+            stream_type = stream_name[0:3]
+            stream_name = stream_name[4:]
+            self._name = self._lineedit_name.text() or "No Name"
             if stream_name:
 
-                # first resolve an EEG stream on the lab network
-                print("Connecting to LSL stream... ")
-                self._name = self._lineedit_name.text() or "No Name"
-                streams = resolve_streams()
+                # open LSL stream
+                if stream_type == 'LSL':
 
-                # create a new inlet to read from the stream
-                for s in streams:
-                    s_name, s_id, s_channels, s_rate = stream_name.split(' | ')
-                    if s.source_id == s_id:
+                    # first resolve an EEG stream on the lab network
+                    print("Connecting to LSL stream... ")
+                    streams = resolve_streams()
 
-                        # set gui info
-                        self._channels = s.n_channels
-                        self._sampling_rate = s.sfreq
-                        self._samples = int(self._data_seconds * self._sampling_rate)
-                        self._eeg_stream = Stream(self._data_seconds, name=s_name, stype=s.stype, source_id=s.source_id)
-                        self._checkbox_connect_lsl.setText("Connected")
+                    # create a new inlet to read from the stream
+                    for s in streams:
+                        s_name, s_id, s_channels, s_rate = stream_name.split(' | ')
+                        if s.source_id == s_id:
 
-                        # connect to stream
-                        self._eeg_stream.connect(acquisition_delay=0.1, processing_flags="all")
-                        self._streaming = True
+                            # set gui info
+                            self._channels = s.n_channels
+                            self._sampling_rate = s.sfreq
+                            self._samples = int(self._data_seconds * self._sampling_rate)
+                            self._eeg_stream = Stream(self._data_seconds, name=s_name, stype=s.stype, source_id=s.source_id)
+                            self._checkbox_connect_lsl.setText("Connected")
 
-                        # start data reading thread
-                        thstr = threading.Thread(target=self._read_lsl)
-                        thstr.start()
+                            # connect to stream
+                            self._eeg_stream.connect(acquisition_delay=0.1, processing_flags="all")
+                            self._streaming = True
 
-                        # start analysis thread
-                        thanal = threading.Thread(target=self._analyse_psd)
-                        thanal.start()
+                            # start data reading thread
+                            thstr = threading.Thread(target=self._read_lsl)
+                            thstr.start()
 
-                        # enable checkbox
-                        self._checkbox_display_eegpsd.setEnabled(True)
-                        self._checkbox_visualisation_ddots.setEnabled(True)
-                        print("... LSL stream connected.")
+                if stream_type == 'SML':
+
+                    # set gui info
+                    print("Starting data simulation / self-test...")
+                    self._channels = 5
+                    self._sampling_rate = 250
+                    self._samples = int(self._data_seconds * self._sampling_rate)
+                    self._checkbox_connect_lsl.setText("Connected")
+                    # start simulation thread
+                    self._streaming = True
+                    thstr = threading.Thread(target=self._simulate_eeg)
+                    thstr.start()
+
+                # start analysis thread
+                thanal = threading.Thread(target=self._analyse_psd)
+                thanal.start()
+
+                # enable checkbox
+                self._checkbox_display_eegpsd.setEnabled(True)
+                self._checkbox_visualisation_ddots.setEnabled(True)
+                print("... Data source connected.")
 
         # if we're disconnecting
         elif not connect and self._streaming:
@@ -239,7 +257,7 @@ class Mind:
             # start looking for streams again
             if restart_resolve:
                 self._resolving = True
-                thlsl = threading.Thread(target=self._find_lsl_streams)
+                thlsl = threading.Thread(target=self._find_sources)
                 thlsl.start()
             else:
                 self._resolving = False
@@ -261,7 +279,8 @@ class Mind:
                                               self._name + " -- EEG / Spectrum")
 
             # channel names
-            c_names = self._eeg_stream.ch_names or ['C{}'.format(n+1) for n in range(0, self._channels)]
+            c_names = ((self._eeg_stream and self._eeg_stream.ch_names)
+                       or ['C{}'.format(n+1) for n in range(0, self._channels)])
 
             # colours
             frame_c = (0.25, 0.25, 0.25)
@@ -463,6 +482,53 @@ class Mind:
         # done.
         print("Ending LSL reading.")
 
+    def _simulate_eeg(self):
+        """
+        Simulate EEG and write into buffer
+        :return:
+        """
+
+        # Begin
+        print("Starting simulation.")
+
+        # init data buffers
+        with self._eeg_lock:
+            self._eeg_data = np.zeros((self._channels, self._samples))
+        with self._fft_lock:
+            self._fft_data = np.zeros((self._channels, int(self._samples / 2)))
+        with self._bnd_lock:
+            self._bnd_data = np.zeros(5)
+        with self._hst_lock:
+            self._hst_data = np.zeros(
+                (5, int(self._history_length * 5.0)))  # history length * update rate of the analysis thread
+
+        # init noise sources (sine waves of known frequencies)
+        samples = 2 * int(self._sampling_rate)
+        freqs = np.cumsum(np.ones(40))     # going from 1 Hz to 40 Hz
+        waves = np.sin(np.cumsum(2.0*np.pi*np.ones((40, samples))/(self._sampling_rate), axis=1).T * freqs).T
+
+        # start streaming loop
+        self._lsl_label.setEnabled(True)
+        f_window = np.array([1,2,3,4,5])
+        t_window = np.arange(int(samples/10))
+        cycle = 0
+        while self._streaming:
+            with self._eeg_lock:
+                self._eeg_data = np.roll(self._eeg_data, -int(samples/10))
+                self._eeg_data[:, -int(samples/10):] = (waves[f_window, :])[:, t_window]
+            with self._gui_lock:
+                self._lsl_info = "SML Time {:0.1f} s".format(1.0)
+            t_window = np.mod(t_window + int(samples/10), samples)
+            cycle += 1
+            if cycle == 10:
+                cycle = 0
+                f_window = np.mod(f_window+1, 40)
+                t_window = np.arange(int(samples/10))
+            time.sleep(0.1)
+
+        # done.
+        print("Ending LSL reading.")
+
     def _analyse_psd(self):
         """
         Read data into buffer a, then call a new thread
@@ -483,7 +549,7 @@ class Mind:
         is_relative = True
         is_relative_total = True
         normalisation = [1.0, 2.0, 4.0, 8.0, 16.0]
-        is_normalised = True
+        is_normalised = False
         # start streaming loop
         while self._streaming:
             try:
@@ -501,7 +567,7 @@ class Mind:
                     if is_normalised:
                         bnd_data = bnd_data * normalisation
                     if is_relative_total:
-                        bnd_data = bnd_data / bnd_data.sum()   # relative power
+                        bnd_data = bnd_data / (bnd_data.sum() or 1.0)   # relative power
                     with self._bnd_lock:
                         self._bnd_data = smooth*self._bnd_data + (1.0-smooth)*bnd_data
                         with self._hst_lock:
@@ -522,14 +588,15 @@ class Mind:
         # done.
         print("Ending analysis.")
 
-    def _find_lsl_streams(self):
+    def _find_sources(self):
         while self._resolving:
             time.sleep(1.0)
             with self._gui_lock:
                 if not self._streaming:
                     streams = resolve_streams(timeout=1)
-                    self._available_streams = ["{} | {} | {} Channels | {} Hz"
-                                               "".format(s.name, s.source_id, s.n_channels, s.sfreq) for s in streams]
+                    self._available_streams = ["LSL {} | {} | {} Channels | {} Hz"
+                                               "".format(s.name, s.source_id, s.n_channels, s.sfreq)
+                                               for s in streams] + ["SML Simulated data / selftest"]
 
     def _update_gui(self):
         with self._gui_lock:

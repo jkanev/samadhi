@@ -34,7 +34,7 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
     _data_colours = [[np.array([0.0, 0.2, 0.0]), np.array([1.0, 0.0, 1.0])],
                      [np.array([1.0, 0.0, 0.0]), np.array([0.0, 0.2, 0.2])],
                      [np.array([0.2, 0.2, 0.0]), np.array([0.0, 0.0, 1.0])],
-                     [np.array([1.0, 1.0, 0.0]), np.array([0.0, 0.0, 0.2])],
+                     [np.array([0.1, 0.8, 0.0]), np.array([0.0, 0.0, 0.8])],
                      [np.array([0.2, 0.0, 0.0]), np.array([0.0, 1.0, 1.0])]]
 
     def __init__(self, get_data, toggle_fullscreen):
@@ -70,8 +70,8 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
         f = [(abs(np.sin(1 * t0))),
              (abs(np.sin(2 * t0))),
              (abs(np.sin(3 * t0))),
+             (abs(np.sin(4 * t0))),
              (abs(np.sin(5 * t0))),
-             (abs(np.sin(8 * t0))),
              ((np.sin(2 * t0) + 1) * 10.0)]
 
         # Create 10 circles of different lengths
