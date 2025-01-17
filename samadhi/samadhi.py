@@ -60,7 +60,6 @@ class Mind:
     _combobox_streamname = False
     _lineedit_name = False
     _checkbox_connect_lsl = False
-    _checkbox_analyse_psd = False
     _checkbox_display_eegpsd = False
     _checkbox_visualisation_ddots = False
     _parent_tabwidget = False
@@ -94,14 +93,13 @@ class Mind:
     # dancing dots display
     _ddots_tab = False
 
-    def __init__(self, combobox_streamname, lineedit_name, checkbox_connect, checkbox_analyse_psd,
+    def __init__(self, combobox_streamname, lineedit_name, checkbox_connect,
                        checkbox_display_eegpsd, checkbox_visualisation_ddots,
                        lsl_info, eeg_info, bnd_info,
                        parent_tabwidget):
         self._combobox_streamname = combobox_streamname
         self._lineedit_name = lineedit_name
         self._checkbox_connect_lsl = checkbox_connect
-        self._checkbox_analyse_psd = checkbox_analyse_psd
         self._checkbox_display_eegpsd = checkbox_display_eegpsd
         self._checkbox_visualisation_ddots = checkbox_visualisation_ddots
         self._lsl_label = lsl_info
@@ -174,6 +172,7 @@ class Mind:
             self._lsl_label.setEnabled(False)
             self._checkbox_connect_lsl.setText("Click to connect")
             self._eeg_label.setEnabled(False)
+            self._bnd_label.setEnabled(False)
             self._create_eegpsd_tab(False)
             self._create_dancing_dots_tab(False)
         except:
@@ -414,7 +413,6 @@ class Mind:
             hst_lines[n].set_color(color=colour)
             hst_lines[n].set_linewidth(0.5)
 
-        self._eeg_label.setEnabled(True)
         while self._streaming and self._showing_eegpsd:
             try:
                 with self._eeg_lock:
@@ -439,8 +437,6 @@ class Mind:
                 self._fft_canvas.draw()
                 self._bnd_canvas.draw()
                 self._hst_canvas.draw()
-                with self._gui_lock:
-                    self._eeg_info = "{:.1f} µV - {:.1f} µV".format(eeg_min*1e6, eeg_max*1e6)
             except Exception as e:
                 print(e)
                 time.sleep(0.5)
@@ -504,7 +500,7 @@ class Mind:
 
         # init noise sources (sine waves of known frequencies)
         samples = 2 * int(self._sampling_rate)
-        freqs = np.cumsum(np.ones(40))     # going from 1 Hz to 40 Hz
+        freqs = np.round((np.cumsum(np.cumsum(np.ones(40))))*39/820+1)     # going from 1 Hz to 40 Hz, staying longer at the low ones
         waves = np.sin(np.cumsum(2.0*np.pi*np.ones((40, samples))/(self._sampling_rate), axis=1).T * freqs).T
 
         # start streaming loop
@@ -540,6 +536,11 @@ class Mind:
         while not len(self._eeg_data):
             time.sleep(0.5)
 
+        # activate labels
+        self._eeg_label.setEnabled(True)
+        self._bnd_label.setEnabled(True)
+
+        # initialise data objects
         self._fft_freqs = np.fft.rfftfreq(self._samples, d=1.0 / self._sampling_rate, device=None)
         bin_freqs = np.array([3.5, 7.5, 12.5, 30.5, 50.0, 70.0])   # delta, theta, alpha, beta, gamma, total
         bins = [abs(self._fft_freqs - f).argmin() for f in bin_freqs]
@@ -550,11 +551,14 @@ class Mind:
         is_relative_total = True
         normalisation = [1.0, 2.0, 4.0, 8.0, 16.0]
         is_normalised = True
+
         # start streaming loop
         while self._streaming:
             try:
                 with self._fft_lock:
                     with self._eeg_lock:
+                        eeg_min = self._eeg_data.min()
+                        eeg_max = self._eeg_data.max()
                         self._fft_data = np.fft.rfft(self._eeg_data, axis=1)
                     self._fft_data = np.abs(self._fft_data)**2
                     fft_all_channels = self._fft_data.sum(axis=0)[1:] / self._channels     # sum of fft over all channels, excluding DC
@@ -574,12 +578,13 @@ class Mind:
                             self._hst_data[:, :-1] = self._hst_data[:, 1:]
                             self._hst_data[:, -1] = self._bnd_data
                     if is_relative_total:
-                        self._bnd_info = "{:0.1f} | {:0.1f} | {:0.1f} | {:0.1f} | {:0.1f}".format(*self._bnd_data)
+                        self._bnd_info = "Freq δ {:0.1f} | θ {:0.1f} | α {:0.1f} | β {:0.1f} | γ {:0.1f}".format(*self._bnd_data)
                     else:
-                        self._bnd_info = "{:0.1f} | {:0.1f} | {:0.1f} | {:0.1f} | {:0.1f}".format(
+                        self._bnd_info = "Freq δ {:0.1f} | θ {:0.1f} | α {:0.1f} | β {:0.1f} | γ {:0.1f}".format(
                             self._bnd_data[0] * 1e6, self._bnd_data[1] * 1e6, self._bnd_data[2] * 1e6,
                             self._bnd_data[3] * 1e6,
                             self._bnd_data[4] * 1e6)
+                    self._eeg_info = "{:.1f} µV - {:.1f} µV".format(eeg_min * 1e6, eeg_max * 1e6)
             except Exception as e:
                 print(e)
                 time.sleep(0.5)
@@ -618,6 +623,7 @@ class Mind:
     def get_data(self):
         return self._bnd_data
 
+
 class SamadhiWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     """
     Implements the main part of the GUI.
@@ -647,7 +653,7 @@ class SamadhiWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # add one mind
         self.add_mind(self.comboBoxStreamName01, self.lineEditName01, self.checkBoxConnect01,
-                      self.checkBoxAnalPSD, self.checkBoxDspEegPsd, self.checkBoxDspDancingDots,
+                      self.checkBoxDspEegPsd, self.checkBoxDspDancingDots,
                       self.labelLslStatus, self.labelEegStatus, self.labelFrequencyBands)
 
     def __del__(self):
@@ -657,11 +663,9 @@ class SamadhiWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         print("... main windows closed.")
 
     def add_mind(self, combobox_streamname, lineedit_name, checkbox_connect,
-                       checkbox_analyse,
                        checkbox_display_eegpsd, checkbox_display_ddots,
                        lsl_info, eeg_info, bnd_info):
         self._minds.append(Mind(combobox_streamname, lineedit_name, checkbox_connect,
-                                checkbox_analyse,
                                 checkbox_display_eegpsd, checkbox_display_ddots,
                                 lsl_info, eeg_info, bnd_info, self.tabWidget))
 
