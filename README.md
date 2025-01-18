@@ -38,3 +38,11 @@ The spectrum values are obtained from a Fourier Transform (power spectral densit
 band width to prevent wider bands having more influence, and then normalised so the sum of all bands 
 is 1.0.
 
+### Installing and Running
+
+The software is a python package on PyPi. To install and run, do:
+`pip install samadhi`
+`python3 -m samadhi`
+To uninstall:
+`pip uninstall samadhi`
+(Non-Python installers for Linux and Windows will follow)

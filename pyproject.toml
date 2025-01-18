@@ -7,8 +7,8 @@ name = "samadhi"
 authors = [
     {name = "Jacob Kanev", email = "jkanev@zoho.com"}
 ]
-description = "Monitoring LSL EEG data, frequency analysis, and different visual displays."
-version = "0.1"
+description = "A realtime EEG viewer using novel ways to visualise EEG."
+version = "0.2"
 readme = "README.md"
 requires-python = ">=3.12.5"
 dependencies = [
@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.urls]
-homepage = "https://github.com/jkanev/samadhi"
+homepage = "http://samadhi-eeg.info"
 documentation = "https://github.com/jkanev/samadhi"
 repository = "https://github.com/jkanev/samadhi.git"
 issues = "https://github.com/jkanev/samadhi/-/issues"
