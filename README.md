@@ -17,10 +17,17 @@ is 1.0.
 ### Dancing Dots
 
 **A wavy, rotating, jelly-fish like flower made up of single dots.** This is a spectrum display, visualising
-the current value of the EEG frequency bands Delta, Theta, Alpha, Beta and Gamma. The data
-from the spectrum analysis is averaged over rings of different lengths, arranged in concentric circles. The
+the current value of the EEG frequency bands Delta, Theta, Alpha, Beta and Gamma.
+![Image: Main page with EEG/PSD Tab](doc/main-window-dancing-dots.png)
+The data from the spectrum analysis is averaged over rings of different lengths, arranged in concentric circles. The
 hills and valleys of the sine waves add up or cancel out, depending on their frequency and the circumference
 of the circle, creating a flower-like pattern with different colours and rotations.
-![Image: Main page with EEG/PSD Tab](doc/main-window-dancing-dots.png)
-The dancing dot flower display runs first inside the window, a mouse click brings it to full-screen
+This means the frequency of the spectrum band is represented in the symmetry of the dot display:
+
+| ![Image: Main page with EEG/PSD Tab](doc/dancing-dots-delta.png)  | ![Image: Main page with EEG/PSD Tab](doc/dancing-dots-theta.png) | ![Image: Main page with EEG/PSD Tab](doc/dancing-dots-alpha.png) | ![Image: Main page with EEG/PSD Tab](doc/dancing-dots-beta.png) | ![Image: Main page with EEG/PSD Tab](doc/dancing-dots-gamma.png) |
+|:-----------------------------------------------------------------:|:----------------------------------------------------------------:|:----------------------------------------------------------------:|:---------------------------------------------------------------:|:----------------------------------------------------------------:|
+|                               Delta                               |                              Theta                               |                              Alpha                               |                              Beta                               |                              Gamma                               |
+
+The actual display will be a superposition of these. The dancing dot flower display runs first inside
+the window, a mouse click brings it to full-screen
 (and back again). This display uses hardware acceleration (OpenGL).
