@@ -31,7 +31,7 @@ class Mind:
     _streaming = False   # whether we're streaming currently
     _resolving = True    # whether we're looking for LSL streams
     _showing_eegpsd = False     # whether we're showing the eeg/psd tab
-    _data_seconds = 10.0  # how much data do we have in the _eeg_data array
+    _data_seconds = 2.0  # how much data do we have in the _eeg_data array
     _sampling_rate = 0   # sampling rate of eeg data
     _samples = 0         # seconds times sampling rate
     _fft_resolution = 0  # resolution (distance of one FFT bin to the next)
@@ -508,6 +508,7 @@ class Mind:
         f_window = np.array([0,0,0,0,0])
         t_window = np.arange(int(samples/10))
         cycle = 0
+        metacycle = 0
         while self._streaming:
             with self._eeg_lock:
                 self._eeg_data = np.roll(self._eeg_data, -int(samples/10))
@@ -518,8 +519,12 @@ class Mind:
             cycle += 1
             if cycle == 10:
                 cycle = 0
+                metacycle += 1
                 f_window = np.mod(f_window+1, 40)
                 t_window = np.arange(int(samples/10))
+            if metacycle == 40:
+                metacycle = 0
+                f_window = np.mod(f_window + np.array([0,1,2,3,4]), 40)
             time.sleep(0.1)
 
         # done.

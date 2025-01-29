@@ -25,7 +25,7 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
     _shader_program_id = 0
     _M = 0
     _N = 0
-    _softmax = 2.0
+    _softmax = 3.0
     _viewport = [0.0, 0.0, 0.0, 0.0]
     _update_viewport = False
     _fullscreen = False    # current display
@@ -37,15 +37,16 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
     orange = np.array([1.0, 0.5, 0.0])
     yellow = np.array([0.6, 0.6, 0.0])
     green = np.array([0.0, 0.6, 0.0])
+    turquoise = np.array([0.0, 0.6, 0.6])
     blue = np.array([0.0, 0.0, 1.0])
     purple = np.array([0.8, 0.0, 0.4])
     black = np.array([0.0, 0.0, 0.0])
     dark = 0.3
-    _data_colours = [[yellow, dark*red],
-                     [red, dark*blue],
-                     [orange, dark*purple],
-                     [green, dark*orange],
-                     [dark*blue, red]]
+    _data_colours = [[red, dark*green],
+                     [yellow, dark*blue],
+                     [orange, dark*turquoise],
+                     [green, dark*red],
+                     [blue, dark*yellow]]
 
     def __init__(self, get_data, toggle_fullscreen):
         super().__init__()
@@ -78,11 +79,10 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
         dt = 0.005
         t0 = np.arange(0, 5 * np.pi, dt)
         f = [(abs(np.sin(1 * t0))),
-             (abs(np.sin(2 * t0))),
-             (abs(np.sin(5 * t0))),
-             (abs(np.sin(10 * t0))),
-             (abs(np.sin(15 * t0))),
-             ((np.sin(2 * t0) + 1) * 10.0)]
+             (abs(np.sin(1.5 * t0))),
+             (abs(np.sin(3.5 * t0))),
+             (abs(np.sin(5.5 * t0))),
+             (abs(np.sin(6.5 * t0))),]
 
         # Create 10 circles of different lengths
         freq_start = 1.0
