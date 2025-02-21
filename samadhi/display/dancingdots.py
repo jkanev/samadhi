@@ -185,7 +185,7 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
 
         # k[X] - turning speed and direction of each frequency ring
         self._k += 0.5*np.array([(5.0/5.0)*c1, (-4.0/5.0)*c2, (3.0/5.0)*c3, (-2.0/5.0)*c4, (1.0/5.0)*c5])
-        kn = np.floor(self._k)  # left index into ring
+        kn = np.floor(self._k).astype(int)  # left index into ring
         km = kn + 1  # right index into ring
         kp = km - self._k  # left amount
         kq = self._k - kn  # right amount

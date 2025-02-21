@@ -546,7 +546,7 @@ class Mind:
         self._bnd_label.setEnabled(True)
 
         # initialise data objects
-        self._fft_freqs = np.fft.rfftfreq(self._samples, d=1.0 / self._sampling_rate, device=None)
+        self._fft_freqs = np.fft.rfftfreq(self._samples, d=1.0 / self._sampling_rate)
         bin_freqs = np.array([3.5, 7.5, 12.5, 30.5, 50.0, 70.0])   # delta, theta, alpha, beta, gamma, total
         bins = [abs(self._fft_freqs - f).argmin() for f in bin_freqs]
         widths = np.insert(bin_freqs[1:] - bin_freqs[:-1], 0, bin_freqs[0])
