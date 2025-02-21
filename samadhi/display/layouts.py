@@ -43,45 +43,51 @@ class DancingDotsLayout(QtWidgets.QGridLayout):
         # controls for repr. frequencies
         spin_freq0 = QtWidgets.QSpinBox()
         spin_freq0.setRange(1, 50)
+        spin_freq0.valueChanged.connect(self.update_ddots_display)
         settingslayout.addWidget(QtWidgets.QLabel("Freq. 1"), 2, 0, 1, 1)
         settingslayout.addWidget(spin_freq0, 2, 1, 1, 1)
         self._settings['freq0'] = spin_freq0
         spin_freq1 = QtWidgets.QSpinBox()
         spin_freq1.setRange(1, 50)
+        spin_freq1.valueChanged.connect(self.update_ddots_display)
         settingslayout.addWidget(QtWidgets.QLabel("Freq. 2"), 3, 0, 1, 1)
         settingslayout.addWidget(spin_freq1, 3, 1, 1, 1)
         self._settings['freq1'] = spin_freq1
         spin_freq2 = QtWidgets.QSpinBox()
         spin_freq2.setRange(1, 50)
+        spin_freq2.valueChanged.connect(self.update_ddots_display)
         settingslayout.addWidget(QtWidgets.QLabel("Freq. 3"), 4, 0, 1, 1)
         settingslayout.addWidget(spin_freq2, 4, 1, 1, 1)
         self._settings['freq2'] = spin_freq2
         spin_freq3 = QtWidgets.QSpinBox()
         spin_freq3.setRange(1, 50)
+        spin_freq3.valueChanged.connect(self.update_ddots_display)
         settingslayout.addWidget(QtWidgets.QLabel("Freq. 4"), 5, 0, 1, 1)
         settingslayout.addWidget(spin_freq3, 5, 1, 1, 1)
         self._settings['freq3'] = spin_freq3
         spin_freq4 = QtWidgets.QSpinBox()
         spin_freq4.setRange(1, 50)
+        spin_freq4.valueChanged.connect(self.update_ddots_display)
         settingslayout.addWidget(QtWidgets.QLabel("Freq. 5"), 6, 0, 1, 1)
         settingslayout.addWidget(spin_freq4, 6, 1, 1, 1)
         self._settings['freq4'] = spin_freq4
         self.addWidget(self._no_settings_wdg, 0, 0, 1, 1)
 
-        # add widget
-        self._ddots_wdg = OpenGLDancingDots(get_data, self.toggle_fullscreen_dancing_dots)
-        self.addWidget(self._ddots_wdg, 0, 1, 1, 1)
-        self.setColumnStretch(0, 0)
-        self.setColumnStretch(1, 1)
-
         # add default settings
-        self.set_settings({
+        settings = {
             'freq0': 1,
             'freq1': 2,
             'freq2': 3,
             'freq3': 5,
             'freq4': 8,
-        })
+        }
+        self.set_settings(settings)
+
+        # add widget
+        self._ddots_wdg = OpenGLDancingDots(get_data, self.toggle_fullscreen_dancing_dots, settings)
+        self.addWidget(self._ddots_wdg, 0, 1, 1, 1)
+        self.setColumnStretch(0, 0)
+        self.setColumnStretch(1, 1)
 
         # start display thread
         time.sleep(1)
@@ -118,7 +124,7 @@ class DancingDotsLayout(QtWidgets.QGridLayout):
         """
         settings = {}
         for name, widget in self._settings.items():
-            settings[name] = widget.getValue()
+            settings[name] = widget.value()
         return settings
 
     def set_settings(self, settings):
@@ -127,6 +133,13 @@ class DancingDotsLayout(QtWidgets.QGridLayout):
         """
         for name, value in settings.items():
             self._settings[name].setValue(value)
+
+    def update_ddots_display(self):
+        """ Set parameters in ddots display
+        :return: void
+        """
+        if self._showing_ddots:
+            self._ddots_wdg.set_parameters(self.get_settings())
 
     def toggle_fullscreen_dancing_dots(self, fullscreen):
         if not fullscreen:

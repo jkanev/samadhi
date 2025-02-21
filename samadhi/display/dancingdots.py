@@ -48,23 +48,18 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
                      [green, dark*red],
                      [blue, dark*yellow]]
 
-    def __init__(self, get_data, toggle_fullscreen):
+    def __init__(self, get_data, toggle_fullscreen, settings):
         super().__init__()
 
         self._get_data = get_data
         self._toggle_fullscreen = toggle_fullscreen
+
         self._M = 30  # number of circles
         self._N = 200  # points per circle
 
-        # k direction
-        # p in/out movement
-        self._p = 0.0
-        self._q = 1.0
-        self._k = np.array([0.0, 0.0, 0.0, 0.0, 0.0])
-
         # initialise data structures
-        self._r_numbers = np.arange(0, self._M * 2.0*np.pi, 2.0*np.pi/self._N, dtype=np.float32)
-        self._r_numbers = np.mod(self._r_numbers, 2.0*np.pi)
+        self._r_numbers = np.arange(0, self._M * 2.0 * np.pi, 2.0 * np.pi / self._N, dtype=np.float32)
+        self._r_numbers = np.mod(self._r_numbers, 2.0 * np.pi)
         self._phi_numbers = np.sin(self._r_numbers, dtype=np.float32)
         self._x_numbers = np.zeros(self._r_numbers.shape, dtype=np.float32)
         self._y_numbers = np.zeros(self._r_numbers.shape, dtype=np.float32)
@@ -75,14 +70,28 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
         self._buffer_id = 0
         self._counter = 0.0
 
+        self.set_parameters(settings)
+
+
+    def set_parameters(self, settings):
+
+        if self._timer:
+            self._timer.stop()
+
+        # k direction
+        # p in/out movement
+        self._p = 0.0
+        self._q = 1.0
+        self._k = np.array([0.0, 0.0, 0.0, 0.0, 0.0])
+
         # Create sum of sine waves of different frequencies
         dt = 0.005
         t0 = np.arange(0, 5 * np.pi, dt)
-        f = [(abs(np.sin(1 * t0))),
-             (abs(np.sin(1.5 * t0))),
-             (abs(np.sin(3.5 * t0))),
-             (abs(np.sin(5.5 * t0))),
-             (abs(np.sin(6.5 * t0))),]
+        f = [(abs(np.sin(0.5 * settings['freq0'] * t0))),
+             (abs(np.sin(0.5 * settings['freq1'] * t0))),
+             (abs(np.sin(0.5 * settings['freq2'] * t0))),
+             (abs(np.sin(0.5 * settings['freq3'] * t0))),
+             (abs(np.sin(0.5 * settings['freq4'] * t0))),]
 
         # Create 10 circles of different lengths
         freq_start = 1.0
@@ -117,6 +126,10 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
                     index = int(float(i) * (len(s[m][n]) - 1) / (self._N - 1.0))
                     self._r[m][n][i] = s[m][n][index]
                 self._r[m][n][self._N - 1] = s[m][n][0]  # close the circle
+
+        # restart timer again
+        if self._timer:
+            self._timer.start(30)
 
     def initializeGL(self):
 
