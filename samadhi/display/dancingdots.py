@@ -47,6 +47,7 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
                      [orange, dark*turquoise],
                      [green, dark*red],
                      [blue, dark*yellow]]
+    _rotations = [0, 0, 0, 0, 0]
 
     def __init__(self, get_data, toggle_fullscreen, settings):
         super().__init__()
@@ -84,6 +85,15 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
         self._q = 1.0
         self._k = np.array([0.0, 0.0, 0.0, 0.0, 0.0])
 
+        for n in range(0, 5):
+
+            # colours
+            self._data_colours[n][0] = np.array(settings['incolour{}'.format(n)])/255.0
+            self._data_colours[n][1] = np.array(settings['outcolour{}'.format(n)])/255.0
+
+            # rotations
+            self._rotations[n] = np.array(settings['rotation{}'.format(n)])
+
         # Create sum of sine waves of different frequencies
         dt = 0.005
         t0 = np.arange(0, 5 * np.pi, dt)
@@ -102,7 +112,6 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
         for m in range(0, self._M):
             s[m] = [[]] * 5
             freq = freq_start + m * freq_step  # our circle frequency
-            print(freq)
             for n in range(0, 5):
                 s[m][n] = np.zeros(int((2 / freq) * np.pi / dt))
             t[m] = [m for m in np.arange(0, 2 * np.pi, 2 * np.pi / self._N)]
@@ -197,7 +206,8 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
         print("Frequency bands: {:.2f}, {:.2f}, {:.2f}, {:.2f}, {:.2f}".format(c1, c2, c3, c4, c5), end='\r')
 
         # k[X] - turning speed and direction of each frequency ring
-        self._k += 0.5*np.array([(5.0/5.0)*c1, (-4.0/5.0)*c2, (3.0/5.0)*c3, (-2.0/5.0)*c4, (1.0/5.0)*c5])
+        self._k += 0.5*np.array([self._rotations[0]*c1, self._rotations[1]*c2, self._rotations[2]*c3,
+                                 self._rotations[3]*c4, self._rotations[4]*c5])
         kn = np.floor(self._k).astype(int)  # left index into ring
         km = kn + 1  # right index into ring
         kp = km - self._k  # left amount

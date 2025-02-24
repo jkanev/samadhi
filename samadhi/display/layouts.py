@@ -1,8 +1,46 @@
 # -*- coding:utf-8 -*-
 #!/usr/bin/python3
-from PyQt6 import QtWidgets
+from PyQt6.QtWidgets import QPushButton
+from PyQt6 import QtWidgets, QtGui, QtCore
 from .dancingdots import OpenGLDancingDots
 import time
+
+class ColourButton(QPushButton):
+    """
+    Helper class. A button with a connected QColor dialog, that has a signal .valueChanged and a .value() function
+    that returns three ints (the rgb value of the colour)
+    """
+
+    _value = (0, 0, 0)     # the current colour, a tuple of three ints (rgb 0/255)
+    valueChanged = QtCore.pyqtSignal((int, int, int), name='valueChanged')   # signal when user selects colour
+
+    def value(self):
+        """
+        :return: The current colour
+        """
+        return self._value
+
+    def setValue(self, colour):
+        """ Sets the current colour and changes the button background
+        :param colour: The colour to set, a tuple of three ints
+        """
+        self._value = colour
+        self.setStyleSheet('background-color: #{:02x}{:02x}{:02x}'.format(*self._value))
+
+    def __init__(self):
+        """ Connecting the the base class' signal
+        """
+        super().__init__()
+        self.clicked.connect(self.select_colour)
+
+    def select_colour(self):
+        """ Callback when clicked; calls the colour dialog and stores the selected value
+        :return: void
+        """
+        self.setValue(QtWidgets.QColorDialog.getColor().getRgb()[:3])
+        self.valueChanged.emit(self._value[0], self._value[1], self._value[2])    # seperately, tuples aren't supported
+
+
 
 class DancingDotsLayout(QtWidgets.QGridLayout):
 
@@ -29,61 +67,73 @@ class DancingDotsLayout(QtWidgets.QGridLayout):
         show_settings_btn.clicked.connect(self.show_settings)
         hide_settings_btn = QtWidgets.QPushButton("Hide Settings")
         hide_settings_btn.clicked.connect(self.hide_settings)
-        settingslayout.addWidget(hide_settings_btn, 0, 0, 1, 2)
+        settingslayout.addWidget(hide_settings_btn, 0, 0, 1, 4)
         no_settingslayout.addWidget(show_settings_btn, 0, 0, 1, 1)
         settingslayout.addItem(QtWidgets.QSpacerItem(10, 20,
                                                        QtWidgets.QSizePolicy.Policy.Minimum,
                                                        QtWidgets.QSizePolicy.Policy.Expanding),
-                                 1, 0, 1, 1)
+                                 1, 0, 1, 4)
         no_settingslayout.addItem(QtWidgets.QSpacerItem(10, 20,
                                                            QtWidgets.QSizePolicy.Policy.Minimum,
                                                            QtWidgets.QSizePolicy.Policy.Expanding),
                                     1, 0, 1, 1)
 
         # controls for repr. frequencies
-        spin_freq0 = QtWidgets.QSpinBox()
-        spin_freq0.setRange(1, 50)
-        spin_freq0.valueChanged.connect(self.update_ddots_display)
-        settingslayout.addWidget(QtWidgets.QLabel("Freq. 1"), 2, 0, 1, 1)
-        settingslayout.addWidget(spin_freq0, 2, 1, 1, 1)
-        self._settings['freq0'] = spin_freq0
-        spin_freq1 = QtWidgets.QSpinBox()
-        spin_freq1.setRange(1, 50)
-        spin_freq1.valueChanged.connect(self.update_ddots_display)
-        settingslayout.addWidget(QtWidgets.QLabel("Freq. 2"), 3, 0, 1, 1)
-        settingslayout.addWidget(spin_freq1, 3, 1, 1, 1)
-        self._settings['freq1'] = spin_freq1
-        spin_freq2 = QtWidgets.QSpinBox()
-        spin_freq2.setRange(1, 50)
-        spin_freq2.valueChanged.connect(self.update_ddots_display)
-        settingslayout.addWidget(QtWidgets.QLabel("Freq. 3"), 4, 0, 1, 1)
-        settingslayout.addWidget(spin_freq2, 4, 1, 1, 1)
-        self._settings['freq2'] = spin_freq2
-        spin_freq3 = QtWidgets.QSpinBox()
-        spin_freq3.setRange(1, 50)
-        spin_freq3.valueChanged.connect(self.update_ddots_display)
-        settingslayout.addWidget(QtWidgets.QLabel("Freq. 4"), 5, 0, 1, 1)
-        settingslayout.addWidget(spin_freq3, 5, 1, 1, 1)
-        self._settings['freq3'] = spin_freq3
-        spin_freq4 = QtWidgets.QSpinBox()
-        spin_freq4.setRange(1, 50)
-        spin_freq4.valueChanged.connect(self.update_ddots_display)
-        settingslayout.addWidget(QtWidgets.QLabel("Freq. 5"), 6, 0, 1, 1)
-        settingslayout.addWidget(spin_freq4, 6, 1, 1, 1)
-        self._settings['freq4'] = spin_freq4
-        self.addWidget(self._no_settings_wdg, 0, 0, 1, 1)
+        headings = ['Delta', 'Theta', 'Alpha', 'Beta', 'Gamma']
+        for n in range(0, 5):
+
+            # spacer
+            settingslayout.addItem(QtWidgets.QSpacerItem(10, 20,
+                                                         QtWidgets.QSizePolicy.Policy.Minimum,
+                                                         QtWidgets.QSizePolicy.Policy.Expanding),
+                                   4*n+2, 0, 1, 4)
+
+            # label
+            settingslayout.addWidget(QtWidgets.QLabel(headings[n]), 4*n+3, 0, 1, 4)
+
+            # circular frequency
+            spin_freq = QtWidgets.QSpinBox()
+            spin_freq.setRange(1, 50)
+            spin_freq.valueChanged.connect(self.update_ddots_display)
+            settingslayout.addWidget(spin_freq, 4*n+4, 0, 1, 1)
+            settingslayout.addWidget(QtWidgets.QLabel("Circular frequency"), 4*n+4, 1, 1, 1)
+            self._settings['freq{}'.format(n)] = spin_freq
+
+            # rotation
+            spin_rotation = QtWidgets.QDoubleSpinBox()
+            spin_rotation.setRange(-2.0, 2.0)
+            spin_rotation.setSingleStep(0.1)
+            spin_rotation.valueChanged.connect(self.update_ddots_display)
+            settingslayout.addWidget(spin_rotation, 4*n+4, 2, 1, 1)
+            settingslayout.addWidget(QtWidgets.QLabel("Rotation"), 4*n+4, 3, 1, 1)
+            self._settings['rotation{}'.format(n)] = spin_rotation
+
+            # inside colour
+            cbutton_incolour = ColourButton()
+            cbutton_incolour.valueChanged.connect(self.update_ddots_display)
+            settingslayout.addWidget(cbutton_incolour, 4*n+5, 0, 1, 1)
+            settingslayout.addWidget(QtWidgets.QLabel("Inside colour"), 4*n+5, 1, 1, 1)
+            self._settings['incolour{}'.format(n)] = cbutton_incolour
+
+            # outside colour
+            cbutton_outcolour = ColourButton()
+            cbutton_outcolour.valueChanged.connect(self.update_ddots_display)
+            settingslayout.addWidget(cbutton_outcolour, 4*n+5, 2, 1, 1)
+            settingslayout.addWidget(QtWidgets.QLabel("Outside colour"), 4*n+5, 3, 1, 1)
+            self._settings['outcolour{}'.format(n)] = cbutton_outcolour
 
         # add default settings
         settings = {
-            'freq0': 1,
-            'freq1': 2,
-            'freq2': 3,
-            'freq3': 5,
-            'freq4': 8,
+            'freq0': 1, 'rotation0':  1.0, 'incolour0': (204,   0,   0), 'outcolour0': (  0,  46,   0),
+            'freq1': 2, 'rotation1': -0.8, 'incolour1': (153, 153,   0), 'outcolour1': (  0,   0,  76),
+            'freq2': 3, 'rotation2':  0.6, 'incolour2': (255, 128,   0), 'outcolour2': (  0,  46,  46),
+            'freq3': 5, 'rotation3': -0.3, 'incolour3': (  0, 153,   0), 'outcolour3': ( 61,   0,   0),
+            'freq4': 8, 'rotation4':  0.2, 'incolour4': (  0,   0, 255), 'outcolour4': ( 46,  46,   0),
         }
         self.set_settings(settings)
 
-        # add widget
+        # add widgets to main layout
+        self.addWidget(self._no_settings_wdg, 0, 0, 1, 1)
         self._ddots_wdg = OpenGLDancingDots(get_data, self.toggle_fullscreen_dancing_dots, settings)
         self.addWidget(self._ddots_wdg, 0, 1, 1, 1)
         self.setColumnStretch(0, 0)
