@@ -37,7 +37,7 @@ class ColourButton(QPushButton):
         """ Callback when clicked; calls the colour dialog and stores the selected value
         :return: void
         """
-        self.setValue(QtWidgets.QColorDialog.getColor().getRgb()[:3])
+        self.setValue(QtWidgets.QColorDialog.getColor(initial=QtGui.QColor(*self._value)).getRgb()[:3])
         self.valueChanged.emit(self._value[0], self._value[1], self._value[2])    # seperately, tuples aren't supported
 
 
@@ -93,7 +93,7 @@ class DancingDotsLayout(QtWidgets.QGridLayout):
 
             # circular frequency
             spin_freq = QtWidgets.QSpinBox()
-            spin_freq.setRange(1, 50)
+            spin_freq.setRange(0, 50)
             spin_freq.valueChanged.connect(self.update_ddots_display)
             settingslayout.addWidget(spin_freq, 4*n+4, 0, 1, 1)
             settingslayout.addWidget(QtWidgets.QLabel("Circular frequency"), 4*n+4, 1, 1, 1)
@@ -124,11 +124,11 @@ class DancingDotsLayout(QtWidgets.QGridLayout):
 
         # add default settings
         settings = {
-            'freq0': 1, 'rotation0':  1.0, 'incolour0': (204,   0,   0), 'outcolour0': (  0,  46,   0),
-            'freq1': 2, 'rotation1': -0.8, 'incolour1': (153, 153,   0), 'outcolour1': (  0,   0,  76),
-            'freq2': 3, 'rotation2':  0.6, 'incolour2': (255, 128,   0), 'outcolour2': (  0,  46,  46),
-            'freq3': 5, 'rotation3': -0.3, 'incolour3': (  0, 153,   0), 'outcolour3': ( 61,   0,   0),
-            'freq4': 8, 'rotation4':  0.2, 'incolour4': (  0,   0, 255), 'outcolour4': ( 46,  46,   0),
+            'freq0':  2, 'rotation0':  1.0, 'incolour0': (204,   0,   0), 'outcolour0': (  0,  46,   0),
+            'freq1':  3, 'rotation1': -0.8, 'incolour1': (153, 153,   0), 'outcolour1': (  0,   0,  76),
+            'freq2':  4, 'rotation2':  0.6, 'incolour2': (255, 128,   0), 'outcolour2': (  0,  46,  46),
+            'freq3':  8, 'rotation3': -0.3, 'incolour3': (  0, 153,   0), 'outcolour3': ( 61,   0,   0),
+            'freq4': 13, 'rotation4':  0.2, 'incolour4': (  0,   0, 255), 'outcolour4': ( 46,  46,   0),
         }
         self.set_settings(settings)
 
