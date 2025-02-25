@@ -78,6 +78,34 @@ class DancingDotsLayout(QtWidgets.QGridLayout):
                                                            QtWidgets.QSizePolicy.Policy.Expanding),
                                     1, 0, 1, 1)
 
+        # controls for time smoothing and power
+        # spacer
+        settingslayout.addItem(QtWidgets.QSpacerItem(10, 20,
+                                                     QtWidgets.QSizePolicy.Policy.Minimum,
+                                                     QtWidgets.QSizePolicy.Policy.Expanding),
+                               2, 0, 1, 4)
+
+        # label
+        settingslayout.addWidget(QtWidgets.QLabel("General"), 3, 0, 1, 4)
+
+        # circular frequency
+        spin_timesmoothing = QtWidgets.QDoubleSpinBox()
+        spin_timesmoothing.setRange(0.0, 1.0)
+        spin_timesmoothing.setSingleStep(0.02)
+        spin_timesmoothing.valueChanged.connect(self.update_ddots_display)
+        settingslayout.addWidget(spin_timesmoothing, 4, 0, 1, 1)
+        settingslayout.addWidget(QtWidgets.QLabel("Time smoothing"), 4, 1, 1, 1)
+        self._settings['timesmoothing'] = spin_timesmoothing
+
+        # rotation
+        spin_power = QtWidgets.QDoubleSpinBox()
+        spin_power.setRange(0.0, 5.0)
+        spin_power.setSingleStep(0.5)
+        spin_power.valueChanged.connect(self.update_ddots_display)
+        settingslayout.addWidget(spin_power, 4, 2, 1, 1)
+        settingslayout.addWidget(QtWidgets.QLabel("Power/Softmax"), 4, 3, 1, 1)
+        self._settings['power'] = spin_power
+
         # controls for repr. frequencies
         headings = ['Delta', 'Theta', 'Alpha', 'Beta', 'Gamma']
         for n in range(0, 5):
@@ -86,17 +114,17 @@ class DancingDotsLayout(QtWidgets.QGridLayout):
             settingslayout.addItem(QtWidgets.QSpacerItem(10, 20,
                                                          QtWidgets.QSizePolicy.Policy.Minimum,
                                                          QtWidgets.QSizePolicy.Policy.Expanding),
-                                   4*n+2, 0, 1, 4)
+                                   4*n+5, 0, 1, 4)
 
             # label
-            settingslayout.addWidget(QtWidgets.QLabel(headings[n]), 4*n+3, 0, 1, 4)
+            settingslayout.addWidget(QtWidgets.QLabel(headings[n]), 4*n+6, 0, 1, 4)
 
             # circular frequency
             spin_freq = QtWidgets.QSpinBox()
             spin_freq.setRange(0, 50)
             spin_freq.valueChanged.connect(self.update_ddots_display)
-            settingslayout.addWidget(spin_freq, 4*n+4, 0, 1, 1)
-            settingslayout.addWidget(QtWidgets.QLabel("Circular frequency"), 4*n+4, 1, 1, 1)
+            settingslayout.addWidget(spin_freq, 4*n+7, 0, 1, 1)
+            settingslayout.addWidget(QtWidgets.QLabel("Circular frequency"), 4*n+7, 1, 1, 1)
             self._settings['freq{}'.format(n)] = spin_freq
 
             # rotation
@@ -104,31 +132,32 @@ class DancingDotsLayout(QtWidgets.QGridLayout):
             spin_rotation.setRange(-2.0, 2.0)
             spin_rotation.setSingleStep(0.1)
             spin_rotation.valueChanged.connect(self.update_ddots_display)
-            settingslayout.addWidget(spin_rotation, 4*n+4, 2, 1, 1)
-            settingslayout.addWidget(QtWidgets.QLabel("Rotation"), 4*n+4, 3, 1, 1)
+            settingslayout.addWidget(spin_rotation, 4*n+7, 2, 1, 1)
+            settingslayout.addWidget(QtWidgets.QLabel("Rotation"), 4*n+7, 3, 1, 1)
             self._settings['rotation{}'.format(n)] = spin_rotation
 
             # inside colour
             cbutton_incolour = ColourButton()
             cbutton_incolour.valueChanged.connect(self.update_ddots_display)
-            settingslayout.addWidget(cbutton_incolour, 4*n+5, 0, 1, 1)
-            settingslayout.addWidget(QtWidgets.QLabel("Inside colour"), 4*n+5, 1, 1, 1)
+            settingslayout.addWidget(cbutton_incolour, 4*n+8, 0, 1, 1)
+            settingslayout.addWidget(QtWidgets.QLabel("Inside colour"), 4*n+8, 1, 1, 1)
             self._settings['incolour{}'.format(n)] = cbutton_incolour
 
             # outside colour
             cbutton_outcolour = ColourButton()
             cbutton_outcolour.valueChanged.connect(self.update_ddots_display)
-            settingslayout.addWidget(cbutton_outcolour, 4*n+5, 2, 1, 1)
-            settingslayout.addWidget(QtWidgets.QLabel("Outside colour"), 4*n+5, 3, 1, 1)
+            settingslayout.addWidget(cbutton_outcolour, 4*n+8, 2, 1, 1)
+            settingslayout.addWidget(QtWidgets.QLabel("Outside colour"), 4*n+8, 3, 1, 1)
             self._settings['outcolour{}'.format(n)] = cbutton_outcolour
 
         # add default settings
         settings = {
-            'freq0':  2, 'rotation0':  1.0, 'incolour0': (204,   0,   0), 'outcolour0': (  0,  46,   0),
-            'freq1':  3, 'rotation1': -0.8, 'incolour1': (153, 153,   0), 'outcolour1': (  0,   0,  76),
-            'freq2':  4, 'rotation2':  0.6, 'incolour2': (255, 128,   0), 'outcolour2': (  0,  46,  46),
-            'freq3':  8, 'rotation3': -0.3, 'incolour3': (  0, 153,   0), 'outcolour3': ( 61,   0,   0),
-            'freq4': 13, 'rotation4':  0.2, 'incolour4': (  0,   0, 255), 'outcolour4': ( 46,  46,   0),
+            'timesmoothing': 0.95, 'power': 2.0,
+            'freq0':  2, 'rotation0':  0.7, 'incolour0': (255,   0,   0), 'outcolour0': ( 0, 64, 64),
+            'freq1':  3, 'rotation1': -1.0, 'incolour1': (255, 128,   0), 'outcolour1': ( 0, 32, 64),
+            'freq2':  4, 'rotation2':  0.6, 'incolour2': (255, 255,   0), 'outcolour2': ( 0,  0, 64),
+            'freq3':  8, 'rotation3': -0.8, 'incolour3': (  0, 255,   0), 'outcolour3': (64,  0, 64),
+            'freq4': 13, 'rotation4':  0.5, 'incolour4': (  0, 255, 128), 'outcolour4': (64,  0, 32),
         }
         self.set_settings(settings)
 

@@ -85,6 +85,7 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
         self._q = 1.0
         self._k = np.array([0.0, 0.0, 0.0, 0.0, 0.0])
 
+        self._softmax = settings['power']
         for n in range(0, 5):
 
             # colours
