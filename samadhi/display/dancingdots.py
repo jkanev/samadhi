@@ -2,7 +2,7 @@
 #!/usr/bin/python3
 import ctypes
 from OpenGL import GL as gl
-from PyQt6 import QtCore, QtOpenGLWidgets
+from PyQt6 import QtCore, QtOpenGLWidgets, QtOpenGL
 import numpy as np
 
 
@@ -23,6 +23,10 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
     _r = []
     _k = []
     _shader_program_id = 0
+    _vertex_buffer = None  # VBO
+    _vertex_array = None  # VAO
+    _vertices = False
+    _counter = 0.0
     _M = 0
     _N = 0
     _softmax = 3.0
@@ -67,9 +71,6 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
         self._red = np.zeros(self._r_numbers.shape, dtype=np.float32)
         self._green = np.zeros(self._r_numbers.shape, dtype=np.float32)
         self._blue = np.zeros(self._r_numbers.shape, dtype=np.float32)
-        self._vertices = False
-        self._buffer_id = 0
-        self._counter = 0.0
 
         self.set_parameters(settings)
 
@@ -98,11 +99,12 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
         # Create sum of sine waves of different frequencies
         dt = 0.005
         t0 = np.arange(0, 5 * np.pi, dt)
-        f = [(abs(np.sin(0.5 * settings['freq0'] * t0))),
-             (abs(np.sin(0.5 * settings['freq1'] * t0))),
-             (abs(np.sin(0.5 * settings['freq2'] * t0))),
-             (abs(np.sin(0.5 * settings['freq3'] * t0))),
-             (abs(np.sin(0.5 * settings['freq4'] * t0))),]
+        sp = 1  #settings['shape']
+        f = [(abs(np.sin(0.5 * settings['freq0'] * t0))**sp),
+             (abs(np.sin(0.5 * settings['freq1'] * t0))**sp),
+             (abs(np.sin(0.5 * settings['freq2'] * t0))**sp),
+             (abs(np.sin(0.5 * settings['freq3'] * t0))**sp),
+             (abs(np.sin(0.5 * settings['freq4'] * t0))**sp),]
 
         # Create 10 circles of different lengths
         freq_start = 1.0
@@ -142,6 +144,11 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
             self._timer.start(30)
 
     def initializeGL(self):
+
+        print(f"GL_VENDOR: {gl.glGetString(gl.GL_VENDOR)}")
+        print(f"GL_RENDERER: {gl.glGetString(gl.GL_RENDERER)}")
+        print(f"GL_VERSION: {gl.glGetString(gl.GL_VERSION)}")
+        print(f"GL_SHADING_LANGUAGE_VERSION: {gl.glGetString(gl.GL_SHADING_LANGUAGE_VERSION)}")
 
         # the vertex shader
         vertex_shader_id = gl.glCreateShader(gl.GL_VERTEX_SHADER)
@@ -183,12 +190,20 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
         gl.glLinkProgram(self._shader_program_id)
         if gl.glGetProgramiv(self._shader_program_id, gl.GL_LINK_STATUS) == gl.GL_FALSE:
             print("Error linking dancing dots shaders.")
+        if not gl.glIsProgram(self._shader_program_id):
+            print(f"Error: Shader program {self._shader_program_id} is not valid!")
 
         # declare the buffer to be a vertex array
         self._vertices = np.column_stack((self._x_numbers, self._y_numbers, self._red, self._green, self._blue)).ravel()
 
-        self._buffer_id = gl.glGenBuffers(1)
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self._buffer_id)
+        # create the VAO
+        self._vertex_array = QtOpenGL.QOpenGLVertexArrayObject()
+        self._vertex_array.create()
+        self._vertex_array.bind()
+
+        self._vertex_buffer = QtOpenGL.QOpenGLBuffer()
+        self._vertex_buffer.create()
+        self._vertex_buffer.bind()
         gl.glBufferData(gl.GL_ARRAY_BUFFER, self._vertices.nbytes, self._vertices, gl.GL_DYNAMIC_DRAW)
         size = self._vertices.itemsize
         gl.glVertexAttribPointer(0, 2, gl.GL_FLOAT, gl.GL_FALSE, 5*size, ctypes.c_void_p(0))
@@ -272,14 +287,21 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
         self._y_numbers = (self._phi_numbers * np.cos(self._r_numbers))
         self._x_numbers = self._phi_numbers * np.sin(self._r_numbers)
         self._vertices = np.column_stack((self._x_numbers, self._y_numbers, self._red, self._green, self._blue)).ravel()
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self._buffer_id)
+
+        gl.glUseProgram(self._shader_program_id)
+        self._vertex_array.bind()
+        self._vertex_buffer.bind()
         gl.glBufferSubData(gl.GL_ARRAY_BUFFER, 0, self._vertices.nbytes, self._vertices)
         gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT | gl.GL_STENCIL_BUFFER_BIT)
         gl.glClearColor(0.0, 0.0, 0.0, 1.0)
         if self._update_viewport:
             gl.glViewport(*self._viewport)
-        gl.glUseProgram(self._shader_program_id)
+
+        # actual drawing
         gl.glDrawArrays(gl.GL_POINTS, 0, len(self._x_numbers))
+        error = gl.glGetError()
+        if error != gl.GL_NO_ERROR:
+            print(f"glDrawArrays error: {error}")
 
     def resizeGL(self, width, height):
         size = min(width, height)
