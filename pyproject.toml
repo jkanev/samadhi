@@ -8,9 +8,9 @@ authors = [
     {name = "Jacob Kanev", email = "jkanev@zoho.com"}
 ]
 description = "A realtime EEG viewer using novel ways to visualise EEG."
-version = "0.2"
+version = "2025.2"
 readme = "README.md"
-requires-python = ">=3.12.5"
+requires-python = ">=3.10"
 dependencies = [
     "PyQt6",
     "numpy",

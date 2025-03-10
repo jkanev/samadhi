@@ -5,6 +5,7 @@ import sys
 
 from .mainwindow import *
 from PyQt6 import QtCore, QtWidgets
+from PyQt6.QtGui import QSurfaceFormat
 import threading
 import numpy as np
 import time
@@ -472,7 +473,7 @@ class Mind:
 
         # Begin
         print("Starting LSL reading.")
- 
+
         # init data buffers
         self._eeg_stream.filter(2, 70)
         self._eeg_stream.notch_filter(50)
@@ -699,6 +700,10 @@ class Samadhi:
 
     def __init__(self, filename=None):
 
+        format = QSurfaceFormat()
+        format.setProfile(QSurfaceFormat.OpenGLContextProfile.CoreProfile)
+        format.setVersion(3, 3)
+        QSurfaceFormat.setDefaultFormat(format)
         app = QtWidgets.QApplication(sys.argv)
 
         # start main window

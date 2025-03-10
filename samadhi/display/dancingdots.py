@@ -1,10 +1,11 @@
 # -*- coding:utf-8 -*-
 #!/usr/bin/python3
 import ctypes
+
 from OpenGL import GL as gl
 from PyQt6 import QtCore, QtOpenGLWidgets, QtOpenGL
+from PyQt6.QtGui import QSurfaceFormat
 import numpy as np
-
 
 class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
 
@@ -152,13 +153,12 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
 
         # the vertex shader
         vertex_shader_id = gl.glCreateShader(gl.GL_VERTEX_SHADER)
-        shader_code = (" #version 330 core \n"
+        shader_code = (" #version 330 core\n"
                        " layout (location = 0) in vec2 xyCoords; "
                        " layout (location = 1) in vec3 vxColour; "
                        " out vec4 vertColour; "
                        " void main() { "
                        "     gl_Position = vec4(xyCoords, 0.0, 1.0); "
-                       "     gl_PointSize = 6.0; "
                        "     vertColour = vec4(vxColour, 1.0); "
                        " } ")
         gl.glShaderSource(vertex_shader_id, shader_code)
@@ -168,7 +168,7 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
 
         # the fragment shader
         fragment_shader_id = gl.glCreateShader(gl.GL_FRAGMENT_SHADER)
-        shader_code = (" #version 330 core \n"
+        shader_code = (" #version 330 core\n"
                        " in vec4 vertColour; "
                        " out vec4 fragColour; "
                        " void main() { "
@@ -176,7 +176,8 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
                        "     float dist = length(coords); "
                        "     if (dist > 1.0) "
                        "         discard; "
-                       "     fragColour = vertColour; "
+                       "     else "
+                       "         fragColour = vertColour; "
                        " } ")
         gl.glShaderSource(fragment_shader_id, shader_code)
         gl.glCompileShader(fragment_shader_id)
