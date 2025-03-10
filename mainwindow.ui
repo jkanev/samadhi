@@ -176,7 +176,7 @@
         <item row="0" column="0">
          <widget class="QLabel" name="label">
           <property name="text">
-           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Samadhi EEG&lt;br/&gt;&lt;br/&gt;Development version&lt;br/&gt;&lt;br/&gt;Software to explore, test, and make available&lt;br/&gt;different visualisations for EEG.&lt;br/&gt;&lt;br/&gt;License: GPLv4&lt;br/&gt;&lt;br/&gt;Web: &lt;a href=&quot;https://samadhi-eeg.info&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#1d99f3;&quot;&gt;https://samadhi-eeg.info&lt;br/&gt;&lt;/span&gt;&lt;/a&gt;Source code, bugs, issues: &lt;a href=&quot;https://github.com/jkanev/samadhi&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#1d99f3;&quot;&gt;github.com/jkanev/samadhi&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Samadhi EEG&lt;br/&gt;&lt;br/&gt;Version 2025.2&lt;br/&gt;&lt;br/&gt;Software to explore, test, and make available&lt;br/&gt;different visualisations for EEG.&lt;br/&gt;&lt;br/&gt;License: GPLv4&lt;br/&gt;&lt;br/&gt;Web: &lt;a href=&quot;https://samadhi-eeg.info&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#1d99f3;&quot;&gt;https://samadhi-eeg.info&lt;br/&gt;&lt;/span&gt;&lt;/a&gt;Source code, bugs, issues: &lt;a href=&quot;https://github.com/jkanev/samadhi&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#1d99f3;&quot;&gt;github.com/jkanev/samadhi&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
           </property>
          </widget>
         </item>
