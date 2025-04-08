@@ -14,7 +14,7 @@ from mne_lsl.lsl import resolve_streams
 from matplotlib import use as mpl_use
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 import matplotlib.pyplot as plt
-from .display.layouts import DancingDotsLayout
+from .display.layouts import DancingDotsLayout, RadiantRipplesLayout
 
 mpl_use("QtAgg")
 
@@ -63,6 +63,7 @@ class Mind:
     _checkbox_connect_lsl = False
     _checkbox_display_eegpsd = False
     _checkbox_visualisation_ddots = False
+    _checkbox_visualisation_rripples = False
     _parent_tabwidget = False
     _available_streams = []
 
@@ -91,11 +92,12 @@ class Mind:
     _hst_canvas = False
     _hst_height = 110e-4
 
-    # dancing dots display
-    _ddots_tab = False
+    # fancy displays
+    _ddots_tab = False     # dancing dots
+    _rripples_tab = False  # radiant ripples
 
     def __init__(self, combobox_streamname, lineedit_name, checkbox_connect,
-                       checkbox_display_eegpsd, checkbox_visualisation_ddots,
+                       checkbox_display_eegpsd, checkbox_visualisation_ddots, checkbox_visualisation_rripples,
                        lsl_info, eeg_info, bnd_info,
                        parent_tabwidget):
         self._combobox_streamname = combobox_streamname
@@ -103,6 +105,7 @@ class Mind:
         self._checkbox_connect_lsl = checkbox_connect
         self._checkbox_display_eegpsd = checkbox_display_eegpsd
         self._checkbox_visualisation_ddots = checkbox_visualisation_ddots
+        self._checkbox_visualisation_rripples = checkbox_visualisation_rripples
         self._lsl_label = lsl_info
         self._eeg_label = eeg_info
         self._bnd_label = bnd_info
@@ -112,6 +115,7 @@ class Mind:
         self._checkbox_connect_lsl.clicked.connect(self._connect_eeg_stream)
         self._checkbox_display_eegpsd.clicked.connect(self._create_eegpsd_tab)
         self._checkbox_visualisation_ddots.clicked.connect(self._create_dancing_dots_tab)
+        self._checkbox_visualisation_rripples.clicked.connect(self._create_radiant_ripples_tab)
 
         # start stream searching thread (extra, otherwise it blocks to GUI)
         thlsl = threading.Thread(target=self._find_sources)
@@ -170,12 +174,15 @@ class Mind:
             self._checkbox_display_eegpsd.setChecked(False)
             self._checkbox_visualisation_ddots.setEnabled(False)
             self._checkbox_visualisation_ddots.setChecked(False)
+            self._checkbox_visualisation_rripples.setEnabled(False)
+            self._checkbox_visualisation_rripples.setChecked(False)
             self._lsl_label.setEnabled(False)
             self._checkbox_connect_lsl.setText("Click to connect")
             self._eeg_label.setEnabled(False)
             self._bnd_label.setEnabled(False)
             self._create_eegpsd_tab(False)
             self._create_dancing_dots_tab(False)
+            self._create_radiant_ripples_tab(False)
         except:
             pass
 
@@ -255,6 +262,7 @@ class Mind:
                 # enable checkbox
                 self._checkbox_display_eegpsd.setEnabled(True)
                 self._checkbox_visualisation_ddots.setEnabled(True)
+                self._checkbox_visualisation_rripples.setEnabled(True)
                 print("... Data source connected.")
 
         # if we're disconnecting
@@ -403,6 +411,27 @@ class Mind:
             if self._ddots_tab:
                 print("Removing Dancing Dots display tab.")
                 self._parent_tabwidget.removeTab(self._parent_tabwidget.indexOf(self._ddots_tab))
+
+    def _create_radiant_ripples_tab(self, create):
+
+        if create:
+
+            # note
+            print("Creating Radiant Ripples display tab.")
+
+            # create tab
+            self._rripples_tab = QtWidgets.QWidget()
+
+            # add radiant ripples display layout to tab
+            RadiantRipplesLayout(self._rripples_tab, self.get_data)
+            self._parent_tabwidget.addTab(self._rripples_tab, "")
+            self._parent_tabwidget.setTabText(self._parent_tabwidget.indexOf(self._rripples_tab),
+                                              self._name + " -- Radiant Ripples")
+
+        else:
+            if self._rripples_tab:
+                print("Removing Radiant Ripples display tab.")
+                self._parent_tabwidget.removeTab(self._parent_tabwidget.indexOf(self._rripples_tab))
 
     def _display_eeg_psd(self):
 
@@ -691,7 +720,7 @@ class SamadhiWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # add one mind
         self.add_mind(self.comboBoxStreamName01, self.lineEditName01, self.checkBoxConnect01,
-                      self.checkBoxDspEegPsd, self.checkBoxDspDancingDots,
+                      self.checkBoxDspEegPsd, self.checkBoxDspDancingDots, self.checkBoxDspRadiantRipples,
                       self.labelLslStatus, self.labelEegStatus, self.labelFrequencyBands)
 
     def __del__(self):
@@ -701,10 +730,10 @@ class SamadhiWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         print("... main windows closed.")
 
     def add_mind(self, combobox_streamname, lineedit_name, checkbox_connect,
-                       checkbox_display_eegpsd, checkbox_display_ddots,
+                       checkbox_display_eegpsd, checkbox_display_ddots, checkbox_display_rripples,
                        lsl_info, eeg_info, bnd_info):
         self._minds.append(Mind(combobox_streamname, lineedit_name, checkbox_connect,
-                                checkbox_display_eegpsd, checkbox_display_ddots,
+                                checkbox_display_eegpsd, checkbox_display_ddots, checkbox_display_rripples,
                                 lsl_info, eeg_info, bnd_info, self.tabWidget))
 
 
