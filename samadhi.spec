@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 a = Analysis(
-    ['allhere/__main__.py'],
+    ['samadhi/__main__.py'],
     pathex=[],
     binaries=[],
     datas=[],
@@ -21,7 +21,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='allhere',
+    name='samadhi',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -35,10 +35,3 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
 )
-
-#splash = Splash('all-here-splash.png',
-#                binaries=a.binaries,
-#                datas=a.datas,
-#                text_pos=(10, 50),
-#                text_size=12,
-#                text_color='black')

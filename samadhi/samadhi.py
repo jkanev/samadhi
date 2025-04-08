@@ -207,21 +207,33 @@ class Mind:
                     for s in streams:
                         s_name, s_id, s_channels, s_rate = stream_name.split(' | ')
                         if s.source_id == s_id:
+                            try:
+                                # set gui info
+                                self._channels = s.n_channels
+                                self._sampling_rate = s.sfreq
+                                self._samples = int(self._data_seconds * self._sampling_rate)
+                                self._eeg_stream = Stream(self._data_seconds, name=s_name, stype=s.stype, source_id=s.source_id)
 
-                            # set gui info
-                            self._channels = s.n_channels
-                            self._sampling_rate = s.sfreq
-                            self._samples = int(self._data_seconds * self._sampling_rate)
-                            self._eeg_stream = Stream(self._data_seconds, name=s_name, stype=s.stype, source_id=s.source_id)
-                            self._checkbox_connect_lsl.setText("Connected")
+                                # connect to stream
+                                self._eeg_stream.connect(acquisition_delay=0.1, processing_flags="all")
+                                a = 1.0
+                                b = 0.0
+                                a /= b
+                                self._streaming = True
+                                self._checkbox_connect_lsl.setText("Connected")
 
-                            # connect to stream
-                            self._eeg_stream.connect(acquisition_delay=0.1, processing_flags="all")
-                            self._streaming = True
+                                # start data reading thread
+                                thstr = threading.Thread(target=self._read_lsl)
+                                thstr.start()
 
-                            # start data reading thread
-                            thstr = threading.Thread(target=self._read_lsl)
-                            thstr.start()
+                            except RuntimeError as e:
+                                self._eeg_stream = None
+                                self._streaming = False
+                                self._checkbox_connect_lsl.setText("Connection error")
+                                QtWidgets.QMessageBox.warning(None, 'Connection Error',
+                                                              f'Problem connecting to the LSL stream: {e}'
+                                                              '.\nPlease check your firewall setting or try again')
+                                self._checkbox_connect_lsl.setText("Click to connect")
 
                 if stream_type == 'SML':
 
