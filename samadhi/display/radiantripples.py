@@ -51,12 +51,27 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
         self._toggle_fullscreen = toggle_fullscreen
 
         # initialise data structures
-        self._x_numbers = np.array([-0.1, -0.1, -0.1, 0.0, 0.0,  0.0, 0.1, 0.1,  0.1, -0.1, -0.1, -0.1, 0.0, 0.0,  0.0, 0.1, 0.1,  0.1, ], dtype=np.float32)
-        self._y_numbers = np.array([ 0.1,  0.0, -0.1, 0.1, 0.0, -0.1, 0.1, 0.0, -0.1,  0.1,  0.0, -0.1, 0.1, 0.0, -0.1, 0.1, 0.0, -0.1, ], dtype=np.float32)
-        self._radii     = np.array([ 0.0,  0.1,  0.2, 0.3,  0.2,  0.7, 0.6, 0.4,  0.1, 0.8, 0.5,  0.3, 0.7, 0.2,  0.0, 0.9, 0.5,  0.8, ], dtype=np.float32)
-        self._red       = np.array([ 0.2,  0.3,  0.4, 0.2,  0.3,  0.4, 0.5, 0.6,  0.7, 0.5, 0.6,  0.7, 0.8, 0.9,  1.0, 0.8, 0.9,  1.0, ], dtype=np.float32)
-        self._green     = np.array([ 0.0,  0.2,  0.4, 0.8, 1.0,  0.8, 0.6, 0.4,  0.2, 0.0,  0.2,  0.4, 0.8, 1.0,  0.8, 0.6, 0.4,  0.2, ], dtype=np.float32)
-        self._blue      = np.array([ 1.0,  0.9,  1.0,  0.9,  0.8, 0.7, 0.8, 0.7, 0.6,  0.5, 0.6,  0.5, 0.4, 0.3,  0.4, 0.3,  0.2, 0.2, ], dtype=np.float32)
+        # electrodes and their states
+        pos = [-0.6, -0.4, -0.2, 0.0, 0.2, 0.4, 0.6]
+        self._x_positions = np.array(pos*7, dtype=np.float32)
+        self._y_positions = np.array(sorted(pos*7), dtype=np.float32)
+        self._speeds = 0.1 * np.random.rand(len(self._x_positions)) * np.random.rand(len(self._x_positions))     # this is the actual data
+        self._counters = np.random.rand(len(self._x_positions))     # counters for starting new circles
+        red = (-self._x_positions / 1.2) + 0.5    # red from left (1.0) to right (0.0)
+        green = (self._x_positions / 1.2) + 0.5    # green from right (1.0) to left (0.0)
+        yellow = (self._y_positions / 0.9) + 0.75    # yellow from front (1.0) to back (0.0)
+        blue = (-self._y_positions / 1.2) + 0.5    # blue from back (1.0) to front (0.0)
+        self._red_values       = np.maximum(red, 0.5*yellow)
+        self._green_values     = np.maximum(green, 0.5*yellow)
+        self._blue_values      = blue
+
+        # the queue with circles for the screen
+        self._x_numbers = np.zeros(200, dtype=np.float32)     # x position on screen
+        self._y_numbers = np.zeros(200, dtype=np.float32)     # y position on screen
+        self._radii     = np.zeros(200, dtype=np.float32)     # radius on screen
+        self._red       = np.zeros(200, dtype=np.float32)      # red of rgb on screen
+        self._green     = np.zeros(200, dtype=np.float32)      # green of rgb on screen
+        self._blue      = np.zeros(200, dtype=np.float32)      # blue of rgb on screen
 
         self.set_parameters(settings)
 
@@ -153,8 +168,7 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
         self._vertex_array.bind()
         self._vertex_buffer.bind()
         self._radii += 0.01
-        for n in range(0, len(self._radii)):
-            self._radii[n] = self._radii[n] < 0.9 and self._radii[n] or 0.0
+
         gl.glBufferSubData(gl.GL_ARRAY_BUFFER, 0, self._vertices.nbytes, self._vertices)
         gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT | gl.GL_STENCIL_BUFFER_BIT)
         gl.glClearColor(0.0, 0.0, 0.0, 1.0)
@@ -168,6 +182,24 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
         error = gl.glGetError()
         if error != gl.GL_NO_ERROR:
             print(f"glDrawArrays error: {error}")
+
+        # next step
+        self._counters -= self._speeds
+        for n in range(0, len(self._counters)):
+            if self._counters[n] < 0.0:
+                self._x_numbers = np.roll(self._x_numbers, 1)
+                self._y_numbers = np.roll(self._y_numbers, 1)
+                self._red = np.roll(self._red, 1)
+                self._green = np.roll(self._green, 1)
+                self._blue = np.roll(self._blue, 1)
+                self._radii = np.roll(self._radii, 1)
+                self._x_numbers[0] = self._x_positions[n]
+                self._y_numbers[0] = self._y_positions[n]
+                self._radii[0] = 0.0
+                self._red[0] = self._red_values[n]
+                self._green[0] = self._green_values[n]
+                self._blue[0] = self._blue_values[n]
+                self._counters[n] = 1.0
 
     def resizeGL(self, width, height):
         size = min(width, height)
