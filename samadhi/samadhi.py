@@ -48,6 +48,8 @@ class Mind:
     _bnd_lock = threading.Lock()    # lock for bnd data
     _hst_data = []       # frequency band data: ring buffer that is constantly rooled
     _hst_lock = threading.Lock()    # lock for hst data
+    _sqr_data = []       # mean square activity
+    _sqr_lock = threading.Lock()
     _eeg_stream = None   # the lsl eeg input stream inlet, if in eeg mode
     _clc_stream = None   # the lsl calculation output stream outlet, if in calculation mode
 
@@ -82,6 +84,9 @@ class Mind:
     _eeg_axes = False
     _eeg_canvas = False
     _eeg_channel_height = 70e-6
+    _sqr_axes = False
+    _sqr_canvas = False
+    _sqr_channel_height = 70e-6
     _fft_axes = False
     _fft_canvas = False
     _fft_channel_height = 50e-4
@@ -144,6 +149,7 @@ class Mind:
         self._channels = 1
         self._history_length = 600.0
         self._eeg_data = []
+        self._sqr_data = []
         try:
             self._eeg_lock.release()
         except:
@@ -223,9 +229,6 @@ class Mind:
 
                                 # connect to stream
                                 self._eeg_stream.connect(acquisition_delay=0.1, processing_flags="all")
-                                a = 1.0
-                                b = 0.0
-                                a /= b
                                 self._streaming = True
                                 self._checkbox_connect_lsl.setText("Connected")
 
@@ -315,15 +318,32 @@ class Mind:
                 label_c = (0.2, 0.2, 0.2)
                 title_c = (0.1, 0.1, 0.1)
 
+            # first activity plot (normalised squared signal)
+            figure = plt.figure()
+            self._sqr_canvas = FigureCanvasQTAgg(figure)
+            self._sqr_axes = figure.add_subplot(111)
+            self._eegpsd_layout.addWidget(self._sqr_canvas, 0, 0, 1, 1)
+            self._sqr_axes.set_ylim(bottom=-0.2, top=self._channels + 1.2)
+            plt.subplots_adjust(top=0.95, bottom=0.05, left=0.05, right=1.0)
+            self._sqr_axes.set_xticks([])
+            self._sqr_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names, color=label_c)
+            self._sqr_axes.set_title('{} -- {:0.1f}-Seconds-Variance over {} minutes'.format(self._name,
+                                                                                             self._data_seconds,
+                                                                             self._history_length/60.0),
+                                     color=title_c, fontsize=10, pad=5)
+            self._sqr_axes.set_facecolor(outer_c)
+            figure.set_facecolor(passepartout_c)
+            plt.setp(self._sqr_axes.spines.values(), color=frame_c)
+
             # first eeg plot
             figure = plt.figure()
             self._eeg_canvas = FigureCanvasQTAgg(figure)
             self._eeg_axes = figure.add_subplot(111)
-            self._eegpsd_layout.addWidget(self._eeg_canvas, 0, 0, 1, 1)
+            self._eegpsd_layout.addWidget(self._eeg_canvas, 0, 1, 1, 1)
             self._eeg_axes.set_ylim(bottom=-0.2, top=self._channels + 1.2)
-            plt.subplots_adjust(top=0.95, bottom=0.05, left=0.05, right=0.99)
+            plt.subplots_adjust(top=0.95, bottom=0.05, left=0.0, right=0.99)
             self._eeg_axes.set_xticks([])
-            self._eeg_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names, color=label_c)
+            self._eeg_axes.set_yticks(ticks=[])
             self._eeg_axes.set_title('{} -- EEG over {:0.1f} Seconds'.format(self._name, self._data_seconds),
                                      color=title_c, fontsize=10, pad=5)
             self._eeg_axes.set_facecolor(outer_c)
@@ -335,7 +355,7 @@ class Mind:
             self._fft_canvas = FigureCanvasQTAgg(figure)
             self._fft_axes = figure.add_subplot(111)
             plt.subplots_adjust(top=0.95, bottom=0.05, left=0.1, right=0.99)
-            self._eegpsd_layout.addWidget(self._fft_canvas, 0, 1, 1, 1)
+            self._eegpsd_layout.addWidget(self._fft_canvas, 0, 2, 1, 1)
             self._fft_axes.set_ylim(bottom=0.8, top=self._channels + 2.2)
             self._fft_axes.set_xscale('log')
             self._fft_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names, color=label_c)
@@ -349,7 +369,7 @@ class Mind:
             self._hst_canvas = FigureCanvasQTAgg(figure)
             self._hst_axes = figure.add_subplot(111)
             plt.subplots_adjust(top=0.9, bottom=0.05, left=0.05, right=0.99)
-            self._eegpsd_layout.addWidget(self._hst_canvas, 1, 0, 1, 1)
+            self._eegpsd_layout.addWidget(self._hst_canvas, 1, 0, 1, 2)
             self._hst_axes.set_ylim([-0.1, 5.1])
             self._hst_axes.set_xticks([])
             self._hst_axes.set_yticks([0, 1, 2, 3, 4], ['δ', 'θ', 'α', 'β', 'γ'], color=label_c)
@@ -364,7 +384,7 @@ class Mind:
             self._bnd_canvas = FigureCanvasQTAgg(figure)
             self._bnd_axes = figure.add_subplot(111)
             plt.subplots_adjust(top=0.9, bottom=0.1, left=0.1, right=0.99)
-            self._eegpsd_layout.addWidget(self._bnd_canvas, 1, 1, 1, 1)
+            self._eegpsd_layout.addWidget(self._bnd_canvas, 1, 2, 1, 1)
             self._bnd_axes.set_ylim([0.0, 1.1])
             self._bnd_axes.set_xticks([1, 2, 3, 4, 5], ['δ', 'θ', 'α', 'β', 'γ'], color=label_c)
             self._bnd_axes.set_yticks([])
@@ -375,7 +395,8 @@ class Mind:
             plt.setp(self._bnd_axes.spines.values(), color=frame_c)
 
             self._eegpsd_layout.setColumnStretch(0, 3)
-            self._eegpsd_layout.setColumnStretch(1, 1)
+            self._eegpsd_layout.setColumnStretch(1, 2)
+            self._eegpsd_layout.setColumnStretch(2, 1)
             self._eegpsd_layout.setRowStretch(0, 2)
             self._eegpsd_layout.setRowStretch(1, 1)
 
@@ -438,6 +459,7 @@ class Mind:
         # starting thread
         print("Starting EEG/PSD display.")
         while not len(self._eeg_data)\
+                or not len(self._sqr_data)\
                 or not len(self._fft_data)\
                 or not len(self._bnd_data)\
                 or not len(self._hst_data):
@@ -445,6 +467,7 @@ class Mind:
 
         # eeg + fft
         eeg_lines = self._eeg_axes.plot(self._eeg_data.T)  # the last channel in the simulator has the alpha intensity
+        sqr_lines = self._sqr_axes.plot(self._sqr_data.T)
         fft_lines = self._fft_axes.plot(self._fft_freqs, self._fft_data.T)
         bnd_bars = self._bnd_axes.bar([1, 2, 3, 4, 5], self._bnd_data)
         hst_lines = self._hst_axes.plot(self._hst_data.T)
@@ -463,6 +486,8 @@ class Mind:
             eeg_lines[c].set_linewidth(0.4)
             fft_lines[c].set_color(color=colour)
             fft_lines[c].set_linewidth(0.4)
+            sqr_lines[c].set_color(color=colour)
+            sqr_lines[c].set_linewidth(0.4)
 
         # set rainbow colours for frequency bands
         for n in range(0, 5):
@@ -483,6 +508,10 @@ class Mind:
                     for c in range(0, len(eeg_lines)):
                         eeg_lines[c].set_ydata(self._eeg_data[c]/self._eeg_channel_height + float(self._channels - c))
                 self._eeg_channel_height = 0.5*(eeg_max - eeg_min)
+                with self._sqr_lock:
+                    sqr_height = self._sqr_data.max() or 1.0
+                    for c in range(0, len(sqr_lines)):
+                        sqr_lines[c].set_ydata(self._sqr_data[c] / sqr_height + float(self._channels - c))
                 with self._fft_lock:
                     self._fft_channel_height = 0.5*(self._fft_data.max() - self._fft_data.min())
                     for c in range(0, len(fft_lines)):
@@ -496,6 +525,7 @@ class Mind:
                     for b in range(0, len(bnd_bars)):
                         bnd_bars[b].set_height(self._bnd_data[b] / hst_height)
                 self._eeg_canvas.draw()
+                self._sqr_canvas.draw()
                 self._fft_canvas.draw()
                 self._bnd_canvas.draw()
                 self._hst_canvas.draw()
@@ -521,6 +551,8 @@ class Mind:
         self._eeg_stream.get_data()  # reset the number of new samples after the filter is applied
         with self._eeg_lock:
             self._eeg_data = np.zeros((self._channels, self._samples))
+        with self._sqr_lock:
+            self._sqr_data = np.zeros((self._channels, int(self._history_length * 5.0)))  # history length * update rate of the analysis thread
         with self._fft_lock:
             self._fft_data = np.zeros((self._channels, int(self._samples/2)))
         with self._bnd_lock:
@@ -552,6 +584,8 @@ class Mind:
         # init data buffers
         with self._eeg_lock:
             self._eeg_data = np.zeros((self._channels, self._samples))
+        with self._sqr_lock:
+            self._sqr_data = np.zeros((self._channels, self._samples))
         with self._fft_lock:
             self._fft_data = np.zeros((self._channels, int(self._samples / 2)))
         with self._bnd_lock:
@@ -622,8 +656,13 @@ class Mind:
         # start streaming loop
         while self._streaming:
             try:
-                with self._fft_lock:
-                    with self._eeg_lock:
+                with self._eeg_lock:
+                    with self._sqr_lock:
+                        self._sqr_data = np.roll(self._sqr_data, -1)
+                        var = self._eeg_data.var(1)
+                        var -= var.min()
+                        self._sqr_data[:, -1] = (var / var.sum()) * self._channels    # ensure each channel goes from 0.0 to 1.0
+                    with self._fft_lock:
                         eeg_min = self._eeg_data.min()
                         eeg_max = self._eeg_data.max()
                         self._fft_data = np.fft.rfft(self._eeg_data, axis=1)
