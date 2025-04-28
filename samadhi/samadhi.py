@@ -15,6 +15,9 @@ from matplotlib import use as mpl_use
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 import matplotlib.pyplot as plt
 from .display.layouts import DancingDotsLayout, RadiantRipplesLayout
+from mne import channels as chn
+import math
+import re
 
 mpl_use("QtAgg")
 
@@ -29,6 +32,7 @@ class Mind:
     _name = ""           # the person's name
 
     # data streaming related
+    _2d_layout = []      # x,y coordinates of channels, will be written after connecting to the stream
     _streaming = False   # whether we're streaming currently
     _resolving = True    # whether we're looking for LSL streams
     _showing_eegpsd = False     # whether we're showing the eeg/psd tab
@@ -244,6 +248,47 @@ class Mind:
                                                               f'Problem connecting to the LSL stream: {e}'
                                                               '.\nPlease check your firewall setting or try again')
                                 self._checkbox_connect_lsl.setText("Click to connect")
+
+                            # get montage
+                            mtgs = chn.get_builtin_montages()
+                            mtg = chn.make_standard_montage('standard_1020')
+
+                            # create 2-d positions from montage
+                            layout = {}
+                            for ch, crd in mtg.get_positions()['ch_pos'].items():
+
+                                # compute spherical angles
+                                theta = math.atan2(crd[1], math.sqrt(crd[2]**2 + crd[0]**2))
+                                phi = math.atan2(crd[0], crd[2])
+
+                                # merkator projection
+                                x = math.log((1 + math.sin(phi)) / (1 - math.sin(phi)))
+                                y = theta
+                                layout[ch.lower()] = (x,y)
+
+                            # match with current montage
+                            _2d_layout = []
+                            xmax = -1.0
+                            ymax = -1.0
+                            xmin = 1.0
+                            ymin = 1.0
+                            for ch in self._eeg_stream.ch_names:
+                                label = re.match('^[^ -]*', ch)[0].lower()
+                                x, y = layout[label]
+                                _2d_layout += [[x, y]]
+                                if xmin > x:
+                                    xmin = x
+                                if ymin > y:
+                                    ymin = y
+                                if xmax < x:
+                                    xmax = x
+                                if ymax < y:
+                                    ymax = y
+
+                            # scale existing channels to -1,1 box
+                            for ch in _2d_layout:
+                                ch[0] = 2.0 * (ch[0] - xmin) / (xmax - xmin) - 1.0
+                                ch[1] = 2.0 * (ch[1] - ymin) / (ymax - ymin) - 1.0
 
                 if stream_type == 'SML':
 
