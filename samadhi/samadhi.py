@@ -36,7 +36,7 @@ class Mind:
     _streaming = False   # whether we're streaming currently
     _resolving = True    # whether we're looking for LSL streams
     _showing_eegpsd = False     # whether we're showing the eeg/psd tab
-    _data_seconds = 2.0  # how much data do we have in the _eeg_data array
+    _data_seconds = 1.0  # how much data do we have in the _eeg_data array
     _sampling_rate = 0   # sampling rate of eeg data
     _samples = 0         # seconds times sampling rate
     _fft_resolution = 0  # resolution (distance of one FFT bin to the next)
@@ -154,6 +154,7 @@ class Mind:
         self._history_length = 600.0
         self._eeg_data = []
         self._sqr_data = []
+        self._2d_layout = []
         try:
             self._eeg_lock.release()
         except:
@@ -251,44 +252,53 @@ class Mind:
 
                             # get montage
                             mtgs = chn.get_builtin_montages()
-                            mtg = chn.make_standard_montage('standard_1020')
+                            success = False
+                            for montage_name in mtgs:
+                                try:
+                                    # get default positions
+                                    success = True
+                                    mtg = chn.make_standard_montage(montage_name)
 
-                            # create 2-d positions from montage
-                            layout = {}
-                            for ch, crd in mtg.get_positions()['ch_pos'].items():
+                                    # create 2-d positions from montage
+                                    layout = {}
+                                    for ch, crd in mtg.get_positions()['ch_pos'].items():
+                                        theta = math.atan2(crd[1], math.sqrt(crd[2] ** 2 + crd[0] ** 2))
+                                        phi = math.atan2(crd[0], crd[2])
+                                        # x, y = math.log((1 + math.sin(phi)) / (1 - math.sin(phi))), theta     # Mercator projection
+                                        x, y = phi, theta  # equirectangular projection
+                                        layout[ch.lower()] = (x, y)
 
-                                # compute spherical angles
-                                theta = math.atan2(crd[1], math.sqrt(crd[2]**2 + crd[0]**2))
-                                phi = math.atan2(crd[0], crd[2])
+                                    # match with current montage
+                                    xmax = -1.0
+                                    ymax = -1.0
+                                    xmin = 1.0
+                                    ymin = 1.0
+                                    for ch in self._eeg_stream.ch_names:
+                                        label = re.match('^(EEG)? ?([0-9a-zA-Z]*)', ch)[2].lower()
+                                        x, y = layout[label]
+                                        self._2d_layout += [[x, y]]
+                                        if xmin > x:
+                                            xmin = x
+                                        if ymin > y:
+                                            ymin = y
+                                        if xmax < x:
+                                            xmax = x
+                                        if ymax < y:
+                                            ymax = y
 
-                                # merkator projection
-                                x = math.log((1 + math.sin(phi)) / (1 - math.sin(phi)))
-                                y = theta
-                                layout[ch.lower()] = (x,y)
+                                    # scale existing channels to -1,1 box
+                                    for ch in self._2d_layout:
+                                        ch[0] = 2.0 * (ch[0] - xmin) / (xmax - xmin) - 1.0
+                                        ch[1] = 2.0 * (ch[1] - ymin) / (ymax - ymin) - 1.0
 
-                            # match with current montage
-                            _2d_layout = []
-                            xmax = -1.0
-                            ymax = -1.0
-                            xmin = 1.0
-                            ymin = 1.0
-                            for ch in self._eeg_stream.ch_names:
-                                label = re.match('^[^ -]*', ch)[0].lower()
-                                x, y = layout[label]
-                                _2d_layout += [[x, y]]
-                                if xmin > x:
-                                    xmin = x
-                                if ymin > y:
-                                    ymin = y
-                                if xmax < x:
-                                    xmax = x
-                                if ymax < y:
-                                    ymax = y
+                                except KeyError:
+                                    success = False
 
-                            # scale existing channels to -1,1 box
-                            for ch in _2d_layout:
-                                ch[0] = 2.0 * (ch[0] - xmin) / (xmax - xmin) - 1.0
-                                ch[1] = 2.0 * (ch[1] - ymin) / (ymax - ymin) - 1.0
+                                if success:
+                                    break
+
+                            if not success:
+                                print("montage not found")
 
                 if stream_type == 'SML':
 
@@ -302,6 +312,7 @@ class Mind:
                     self._streaming = True
                     thstr = threading.Thread(target=self._simulate_eeg)
                     thstr.start()
+                    self._2d_layout = [[-1.0, 1.0], [1.0, 1.0], [0.0, 0.0], [-1.0, -1.0], [1.0, -1.0]]
 
                 # start analysis thread
                 thanal = threading.Thread(target=self._analyse_psd)
@@ -319,6 +330,7 @@ class Mind:
             print("Disconnecting from LSL stream... ")
             self._streaming = False   # stop the display threads before we disconnect the stream
             self._eeg_stream and self._eeg_stream.disconnect()
+            self._2d_layout = []
             self._reset()
             print("... LSL stream disconnected.")
 
@@ -369,7 +381,7 @@ class Mind:
             self._sqr_axes = figure.add_subplot(111)
             self._eegpsd_layout.addWidget(self._sqr_canvas, 0, 0, 1, 1)
             self._sqr_axes.set_ylim(bottom=-0.2, top=self._channels + 1.2)
-            plt.subplots_adjust(top=0.95, bottom=0.05, left=0.05, right=1.0)
+            plt.subplots_adjust(top=0.95, bottom=0.05, left=0.1, right=1.0)
             self._sqr_axes.set_xticks([])
             self._sqr_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names, color=label_c)
             self._sqr_axes.set_title('{} -- {:0.1f}-Seconds-Variance over {} minutes'.format(self._name,
@@ -399,7 +411,7 @@ class Mind:
             figure = plt.figure()
             self._fft_canvas = FigureCanvasQTAgg(figure)
             self._fft_axes = figure.add_subplot(111)
-            plt.subplots_adjust(top=0.95, bottom=0.05, left=0.1, right=0.99)
+            plt.subplots_adjust(top=0.95, bottom=0.05, left=0.15, right=0.99)
             self._eegpsd_layout.addWidget(self._fft_canvas, 0, 2, 1, 1)
             self._fft_axes.set_ylim(bottom=0.8, top=self._channels + 2.2)
             self._fft_axes.set_xscale('log')
@@ -468,7 +480,7 @@ class Mind:
             self._ddots_tab = QtWidgets.QWidget()
 
             # add dancing dot display layout to tab
-            DancingDotsLayout(self._ddots_tab, self.get_data)
+            DancingDotsLayout(self._ddots_tab, self.get_bnd_data)
             self._parent_tabwidget.addTab(self._ddots_tab, "")
             self._parent_tabwidget.setTabText(self._parent_tabwidget.indexOf(self._ddots_tab),
                                               self._name + " -- Dancing Dots")
@@ -489,7 +501,7 @@ class Mind:
             self._rripples_tab = QtWidgets.QWidget()
 
             # add radiant ripples display layout to tab
-            RadiantRipplesLayout(self._rripples_tab, self.get_data)
+            RadiantRipplesLayout(self._rripples_tab, self.get_sqr_data, self.get_2d_layout)
             self._parent_tabwidget.addTab(self._rripples_tab, "")
             self._parent_tabwidget.setTabText(self._parent_tabwidget.indexOf(self._rripples_tab),
                                               self._name + " -- Radiant Ripples")
@@ -771,8 +783,14 @@ class Mind:
                     if s not in entries:
                         self._combobox_streamname.addItem(s)
 
-    def get_data(self):
+    def get_bnd_data(self):
         return self._bnd_data
+
+    def get_sqr_data(self):
+        return self._sqr_data
+
+    def get_2d_layout(self):
+        return self._2d_layout
 
 
 class SamadhiWindow(QtWidgets.QMainWindow, Ui_MainWindow):

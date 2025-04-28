@@ -230,6 +230,7 @@ class DancingDotsLayout(QtWidgets.QGridLayout):
             self._ddots_wdg.showFullScreen()
 
 
+
 class RadiantRipplesLayout(QtWidgets.QGridLayout):
 
     _showing_rripples = False
@@ -238,7 +239,7 @@ class RadiantRipplesLayout(QtWidgets.QGridLayout):
     _no_settings_wdg = None    # empty settins with a "show" button
     _settings = {}     # dictionary with settings widgets: 'string' → widget
 
-    def __init__(self, parent, get_data):
+    def __init__(self, parent, get_data, get_2d_layout):
         super().__init__(parent)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Policy.Maximum, QtWidgets.QSizePolicy.Policy.Maximum)
         parent.setSizePolicy(sizePolicy)
@@ -351,7 +352,7 @@ class RadiantRipplesLayout(QtWidgets.QGridLayout):
 
         # add widgets to main layout
         self.addWidget(self._no_settings_wdg, 0, 0, 1, 1)
-        self._rripples_wdg = OpenGLRadiantRipples(get_data, self.toggle_fullscreen_radiant_ripples, settings)
+        self._rripples_wdg = OpenGLRadiantRipples(get_data, get_2d_layout, self.toggle_fullscreen_radiant_ripples, settings)
         self.addWidget(self._rripples_wdg, 0, 1, 1, 1)
         self.setColumnStretch(0, 0)
         self.setColumnStretch(1, 1)

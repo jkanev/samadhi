@@ -44,7 +44,7 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
                      [blue, dark*yellow]]
     _rotations = [0, 0, 0, 0, 0]
 
-    def __init__(self, get_data, toggle_fullscreen, settings):
+    def __init__(self, get_data, get_2d_layout, toggle_fullscreen, settings):
         super().__init__()
 
         self._get_data = get_data
@@ -52,9 +52,13 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
 
         # initialise data structures
         # electrodes and their states
-        pos = [-0.6, -0.4, -0.2, 0.0, 0.2, 0.4, 0.6]
-        self._x_positions = np.array(pos*7, dtype=np.float32)
-        self._y_positions = np.array(sorted(pos*7), dtype=np.float32)
+        layout = get_2d_layout()
+        self._x_positions = np.zeros(len(layout), dtype=np.float32)
+        self._y_positions = np.zeros(len(layout), dtype=np.float32)
+        for n in range(0, len(layout)):
+            self._x_positions[n] = 0.6 * layout[n][0]
+            self._y_positions[n] = 0.6 * layout[n][1]
+
         self._speeds = 0.1 * np.random.rand(len(self._x_positions)) * np.random.rand(len(self._x_positions))     # this is the actual data
         self._counters = np.random.rand(len(self._x_positions))     # counters for starting new circles
         red = (-self._x_positions / 1.2) + 0.5    # red from left (1.0) to right (0.0)
@@ -74,7 +78,6 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
         self._blue      = np.zeros(200, dtype=np.float32)      # blue of rgb on screen
 
         self.set_parameters(settings)
-
 
     def set_parameters(self, settings):
 
@@ -184,7 +187,7 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
             print(f"glDrawArrays error: {error}")
 
         # next step
-        self._counters -= self._speeds
+        self._counters -= 0.05 * self._get_data()[:,-1]
         for n in range(0, len(self._counters)):
             if self._counters[n] < 0.0:
                 self._x_numbers = np.roll(self._x_numbers, 1)
