@@ -55,27 +55,26 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
         layout = get_2d_layout()
         self._x_positions = np.zeros(len(layout), dtype=np.float32)
         self._y_positions = np.zeros(len(layout), dtype=np.float32)
+        self._red_values = np.zeros(len(layout), dtype=np.float32)
+        self._green_values = np.zeros(len(layout), dtype=np.float32)
+        self._blue_values = np.zeros(len(layout), dtype=np.float32)
         for n in range(0, len(layout)):
-            self._x_positions[n] = 0.6 * layout[n][0]
-            self._y_positions[n] = 0.6 * layout[n][1]
+            self._x_positions[n] = 0.8 * layout[n][0]
+            self._y_positions[n] = 0.8 * layout[n][1]
+            self._red_values[n] = layout[n][2]
+            self._green_values[n] = layout[n][3]
+            self._blue_values[n] = layout[n][4]
 
         self._speeds = 0.1 * np.random.rand(len(self._x_positions)) * np.random.rand(len(self._x_positions))     # this is the actual data
         self._counters = np.random.rand(len(self._x_positions))     # counters for starting new circles
-        red = (-self._x_positions / 1.2) + 0.5    # red from left (1.0) to right (0.0)
-        green = (self._x_positions / 1.2) + 0.5    # green from right (1.0) to left (0.0)
-        yellow = (self._y_positions / 0.9) + 0.75    # yellow from front (1.0) to back (0.0)
-        blue = (-self._y_positions / 1.2) + 0.5    # blue from back (1.0) to front (0.0)
-        self._red_values       = np.maximum(red, 0.5*yellow)
-        self._green_values     = np.maximum(green, 0.5*yellow)
-        self._blue_values      = blue
 
         # the queue with circles for the screen
-        self._x_numbers = np.zeros(200, dtype=np.float32)     # x position on screen
-        self._y_numbers = np.zeros(200, dtype=np.float32)     # y position on screen
-        self._radii     = np.zeros(200, dtype=np.float32)     # radius on screen
-        self._red       = np.zeros(200, dtype=np.float32)      # red of rgb on screen
-        self._green     = np.zeros(200, dtype=np.float32)      # green of rgb on screen
-        self._blue      = np.zeros(200, dtype=np.float32)      # blue of rgb on screen
+        self._x_numbers = np.zeros(300, dtype=np.float32)     # x position on screen
+        self._y_numbers = np.zeros(300, dtype=np.float32)     # y position on screen
+        self._radii     = np.zeros(300, dtype=np.float32)     # radius on screen
+        self._red       = np.zeros(300, dtype=np.float32)      # red of rgb on screen
+        self._green     = np.zeros(300, dtype=np.float32)      # green of rgb on screen
+        self._blue      = np.zeros(300, dtype=np.float32)      # blue of rgb on screen
 
         self.set_parameters(settings)
 

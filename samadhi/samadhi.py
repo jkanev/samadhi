@@ -265,7 +265,8 @@ class Mind:
                                         theta = math.atan2(crd[1], math.sqrt(crd[2] ** 2 + crd[0] ** 2))
                                         phi = math.atan2(crd[0], crd[2])
                                         # x, y = math.log((1 + math.sin(phi)) / (1 - math.sin(phi))), theta     # Mercator projection
-                                        x, y = phi, theta  # equirectangular projection
+                                        # x, y = phi, theta  # equirectangular projection
+                                        x, y = phi/(1.0 + theta**4.0), theta  # equirectangular projection, but moving frontal and occipital closer together for better looks
                                         layout[ch.lower()] = (x, y)
 
                                     # match with current montage
@@ -286,10 +287,22 @@ class Mind:
                                         if ymax < y:
                                             ymax = y
 
-                                    # scale existing channels to -1,1 box
                                     for ch in self._2d_layout:
+
+                                        # scale existing channels to -1,1 box
                                         ch[0] = 2.0 * (ch[0] - xmin) / (xmax - xmin) - 1.0
                                         ch[1] = 2.0 * (ch[1] - ymin) / (ymax - ymin) - 1.0
+
+                                        # calculate channel colour based on topology
+                                        red = (-ch[0] / 2.0) + 0.5  # red from left (1.0) to right (0.0)
+                                        green = (ch[0] / 2.0) + 0.5  # green from right (1.0) to left (0.0)
+                                        yellow = (ch[1] / 2.0) + 0.5  # yellow from front (1.0) to back (0.0)
+                                        blue = (-ch[1] / 2.0) + 0.5  # blue from back (1.0) to front (0.0)
+                                        red = max(red, 0.5 * yellow)
+                                        green = max(green, 0.5 * yellow)
+                                        ch += [min(1.0, 2.0 * red / (red+green+blue))]
+                                        ch += [min(1.0, 2.0 * green / (red+green+blue))]
+                                        ch += [2.0 * blue / (red+green+blue)]
 
                                 except KeyError:
                                     success = False
@@ -312,7 +325,11 @@ class Mind:
                     self._streaming = True
                     thstr = threading.Thread(target=self._simulate_eeg)
                     thstr.start()
-                    self._2d_layout = [[-1.0, 1.0], [1.0, 1.0], [0.0, 0.0], [-1.0, -1.0], [1.0, -1.0]]
+                    self._2d_layout = [[-1.0, 1.0, 1.0, 0.5, 0.0],
+                                       [1.0, 1.0, 0.5, 1.0, 0.0],
+                                       [0.0, 0.0, 0.5, 0.5, 0.5],
+                                       [-1.0, -1.0, 0.5, 0.0, 1.0],
+                                       [1.0, -1.0, 0.0, 0.5, 1.0]]
 
                 # start analysis thread
                 thanal = threading.Thread(target=self._analyse_psd)
@@ -361,6 +378,9 @@ class Mind:
             # channel names
             c_names = ((self._eeg_stream and self._eeg_stream.ch_names)
                        or ['C{}'.format(n+1) for n in range(0, self._channels)])
+            c_names_b = []
+            for c in c_names:
+                c_names_b = [c] + c_names_b
 
             # colours
             frame_c = (0.25, 0.25, 0.25)
@@ -383,7 +403,7 @@ class Mind:
             self._sqr_axes.set_ylim(bottom=-0.2, top=self._channels + 1.2)
             plt.subplots_adjust(top=0.95, bottom=0.05, left=0.1, right=1.0)
             self._sqr_axes.set_xticks([])
-            self._sqr_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names, color=label_c)
+            self._sqr_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names_b, color=label_c)
             self._sqr_axes.set_title('{} -- {:0.1f}-Seconds-Variance over {} minutes'.format(self._name,
                                                                                              self._data_seconds,
                                                                              self._history_length/60.0),
@@ -415,7 +435,7 @@ class Mind:
             self._eegpsd_layout.addWidget(self._fft_canvas, 0, 2, 1, 1)
             self._fft_axes.set_ylim(bottom=0.8, top=self._channels + 2.2)
             self._fft_axes.set_xscale('log')
-            self._fft_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names, color=label_c)
+            self._fft_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names_b, color=label_c)
             self._fft_axes.set_title('Current PSD', color=title_c, fontsize=10, pad=5)
             self._fft_axes.set_facecolor(outer_c)
             figure.set_facecolor(passepartout_c)
@@ -534,11 +554,10 @@ class Mind:
 
         # set rainbow colours for eeg and fft
         for c in range(0, len(eeg_lines)):
-            a = c/self._channels
             if brightness < 0.5:
-                colour = (0.3+0.7*(1 - a), 0.5+0.5*(1.0 - 2.0*abs(a - 0.5)), 0.3+0.7*a)
+                colour = (self._2d_layout[c][2], self._2d_layout[c][3], self._2d_layout[c][4])
             else:
-                colour = (0.7 - 0.7 * (1 - a), 0.5 - 0.5 * (1.0 - 2.0 * abs(a - 0.5)), 0.7 - 0.7 * a)
+                colour = (0.5*self._2d_layout[c][2], 0.5*self._2d_layout[c][3], 0.5*self._2d_layout[c][4])
             eeg_lines[c].set_color(color=colour)
             eeg_lines[c].set_linewidth(0.4)
             fft_lines[c].set_color(color=colour)
@@ -717,8 +736,8 @@ class Mind:
                     with self._sqr_lock:
                         self._sqr_data = np.roll(self._sqr_data, -1)
                         var = self._eeg_data.var(1)
-                        var -= var.min()
-                        self._sqr_data[:, -1] = (var / var.sum()) * self._channels    # ensure each channel goes from 0.0 to 1.0
+                        var /= var.sum() or 1.0
+                        self._sqr_data[:, -1] = (var - var.min()) * self._channels    # ensure each channel goes from 0.0 to 1.0
                     with self._fft_lock:
                         eeg_min = self._eeg_data.min()
                         eeg_max = self._eeg_data.max()
