@@ -31,6 +31,8 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
     _M = 0
     _N = 0
     _softmax = 3.0
+    _smooth = 0.8
+    _running_mean = np.ones(5)
     _viewport = [0.0, 0.0, 0.0, 0.0]
     _update_viewport = False
     _fullscreen = False    # current display
@@ -218,7 +220,11 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
 
         # cX - amount of frequency ring fX for each frequency X (out of five)
         freqs = self._get_data()
-        [c1, c2, c3, c4, c5] = (freqs**self._softmax) / (freqs**self._softmax).sum()
+        freqs -= freqs.min()
+        freqs = freqs ** self._softmax
+        freqs /= freqs.sum()
+        self._running_mean = self._smooth * self._running_mean + (1.0-self._smooth) * freqs
+        [c1, c2, c3, c4, c5] = self._running_mean
         c6 = 0.1 * (c1 - c2 + c3 - c4 + c5)  # c6 - amount of in/out movement
         print("Frequency bands: {:.2f}, {:.2f}, {:.2f}, {:.2f}, {:.2f}".format(c1, c2, c3, c4, c5), end='\r')
 

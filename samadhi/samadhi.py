@@ -36,10 +36,12 @@ class Mind:
     _streaming = False   # whether we're streaming currently
     _resolving = True    # whether we're looking for LSL streams
     _showing_eegpsd = False     # whether we're showing the eeg/psd tab
-    _data_seconds = 1.0  # how much data do we have in the _eeg_data array
+    _data_seconds = 2.0  # how much data do we have in the _eeg_data array
     _sampling_rate = 0   # sampling rate of eeg data
     _samples = 0         # seconds times sampling rate
     _fft_resolution = 0  # resolution (distance of one FFT bin to the next)
+    _fft_max = 0         # max index for fft (upper border of highest frequency band)
+    _fft_running_mean = None
     _channels = 1        # number of channels in the data
     _history_length = 600.0   # length of history buffer in seconds
     _eeg_data = []       # pointer to the buffer that has just been filled, either data_a or data_b
@@ -434,7 +436,7 @@ class Mind:
             plt.subplots_adjust(top=0.95, bottom=0.05, left=0.15, right=0.99)
             self._eegpsd_layout.addWidget(self._fft_canvas, 0, 2, 1, 1)
             self._fft_axes.set_ylim(bottom=0.8, top=self._channels + 2.2)
-            self._fft_axes.set_xscale('log')
+            #self._fft_axes.set_xscale('log')
             self._fft_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names_b, color=label_c)
             self._fft_axes.set_title('Current PSD', color=title_c, fontsize=10, pad=5)
             self._fft_axes.set_facecolor(outer_c)
@@ -719,20 +721,19 @@ class Mind:
 
         # initialise data objects
         self._fft_freqs = np.fft.rfftfreq(self._samples, d=1.0 / self._sampling_rate)
-        bin_freqs = np.array([3.5, 7.5, 12.5, 30.5, 50.0, 70.0])   # delta, theta, alpha, beta, gamma, total
+        bin_freqs = np.array([3.5, 7.5, 12.5, 30.5, 50.0, 60.0])   # delta, theta, alpha, beta, gamma, total
         bins = [abs(self._fft_freqs - f).argmin() for f in bin_freqs]
         widths = np.insert(bin_freqs[1:] - bin_freqs[:-1], 0, bin_freqs[0])
         self._fft_resolution = self._fft_freqs[1]
+        self._fft_max = bins[-1]
+        self._fft_running_mean = 1e-6 * np.ones((1, self._fft_max))
+        self._fft_freqs = self._fft_freqs[:self._fft_max]
         smooth = self._bnd_smoothing
-        is_relative = True
-        is_relative_total = True
-        normalisation = [1.0, 2.0, 4.0, 8.0, 16.0]
-        is_normalised = True
 
         # start streaming loop
         while self._streaming:
             try:
-                with self._eeg_lock:
+                with (self._eeg_lock):
                     with self._sqr_lock:
                         self._sqr_data = np.roll(self._sqr_data, -1)
                         var = self._eeg_data.var(1)
@@ -742,31 +743,23 @@ class Mind:
                         eeg_min = self._eeg_data.min()
                         eeg_max = self._eeg_data.max()
                         self._fft_data = np.fft.rfft(self._eeg_data, axis=1)
-                    self._fft_data = np.abs(self._fft_data)**2
+                    self._fft_data = (np.abs(self._fft_data)**2)[:,:self._fft_max]
+                    self._fft_running_mean *= 0.99
+                    self._fft_running_mean += 0.01 * self._fft_data.sum(axis=0) / self._channels
+                    self._fft_data /= self._fft_running_mean
                     fft_all_channels = self._fft_data.sum(axis=0)[1:] / self._channels     # sum of fft over all channels, excluding DC
                     c = self._fft_resolution     # normalise each band by its width, as if it were 1.0 wide
-                    if is_relative:
-                        bnd_data = np.array([a[0].sum() * c / a[1] for a in
-                                             zip(np.split(fft_all_channels, bins)[:5], widths)])
-                    else:
-                        bnd_data = np.array([a.sum() * c for a in np.split(fft_all_channels, bins)[:5]])
-                    if is_normalised:
-                        bnd_data = bnd_data * normalisation
-                    if is_relative_total:
-                        bnd_data = bnd_data / (bnd_data.sum() or 1.0)   # relative power
+                    bnd_data = np.array([a[0].sum() * c / a[1] for a in
+                                         zip(np.split(fft_all_channels, bins)[:5], widths)])
+                    bnd_data = bnd_data / (bnd_data.sum() or 1.0)   # relative power
                     with self._bnd_lock:
                         self._bnd_data = smooth*self._bnd_data + (1.0-smooth)*bnd_data
                         with self._hst_lock:
                             self._hst_data[:, :-1] = self._hst_data[:, 1:]
                             self._hst_data[:, -1] = self._bnd_data
-                    if is_relative_total:
-                        self._bnd_info = "Freq δ {:0.1f} | θ {:0.1f} | α {:0.1f} | β {:0.1f} | γ {:0.1f}".format(*self._bnd_data)
-                    else:
-                        self._bnd_info = "Freq δ {:0.1f} | θ {:0.1f} | α {:0.1f} | β {:0.1f} | γ {:0.1f}".format(
-                            self._bnd_data[0] * 1e6, self._bnd_data[1] * 1e6, self._bnd_data[2] * 1e6,
-                            self._bnd_data[3] * 1e6,
-                            self._bnd_data[4] * 1e6)
+                    self._bnd_info = "Freq δ {:0.1f} | θ {:0.1f} | α {:0.1f} | β {:0.1f} | γ {:0.1f}".format(*self._bnd_data)
                     self._eeg_info = "{:.1f} µV - {:.1f} µV".format(eeg_min * 1e6, eeg_max * 1e6)
+
             except Exception as e:
                 print(e)
                 time.sleep(0.5)
