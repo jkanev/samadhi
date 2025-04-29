@@ -21,28 +21,11 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
     _vertex_buffer = None  # VBO
     _vertex_array = None  # VAO
     _counter = 0.0
+    _wavespeed = 0.05
     _viewport = [0.0, 0.0, 0.0, 0.0]
     _update_viewport = False
     _fullscreen = False    # current display
     _toggle_fullscreen = None     # callback for onclick function
-
-    # inside:  red / yellow / blue / orange / green
-    # outside: orange / green / red / yellow / blue
-    red = np.array([0.8, 0.0, 0.0])
-    orange = np.array([1.0, 0.5, 0.0])
-    yellow = np.array([0.6, 0.6, 0.0])
-    green = np.array([0.0, 0.6, 0.0])
-    turquoise = np.array([0.0, 0.6, 0.6])
-    blue = np.array([0.0, 0.0, 1.0])
-    purple = np.array([0.8, 0.0, 0.4])
-    black = np.array([0.0, 0.0, 0.0])
-    dark = 0.3
-    _data_colours = [[red, dark*green],
-                     [yellow, dark*blue],
-                     [orange, dark*turquoise],
-                     [green, dark*red],
-                     [blue, dark*yellow]]
-    _rotations = [0, 0, 0, 0, 0]
 
     def __init__(self, get_data, get_2d_layout, toggle_fullscreen, settings):
         super().__init__()
@@ -82,6 +65,9 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
 
         if self._timer:
             self._timer.stop()
+
+        self._wavespeed = 0.001 * settings['wavespeed']
+        self._wavefrequency = 0.005 * settings['wavefrequency']
 
         # restart timer again
         if self._timer:
@@ -202,7 +188,7 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
         gl.glUseProgram(self._shader_program_id)
         self._vertex_array.bind()
         self._vertex_buffer.bind()
-        self._radii += 0.01
+        self._radii += self._wavespeed
 
         gl.glBufferSubData(gl.GL_ARRAY_BUFFER, 0, self._vertices.nbytes, self._vertices)
         gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT | gl.GL_STENCIL_BUFFER_BIT)
@@ -223,7 +209,7 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
             print(f"glDrawArrays error: {error}")
 
         # next step
-        self._counters -= 0.05 * self._get_data()[:,-1]
+        self._counters -= self._wavefrequency * self._get_data()[:,-1]
         for n in range(0, len(self._counters)):
             if self._counters[n] < 0.0:
                 self._x_numbers = np.roll(self._x_numbers, 1)
