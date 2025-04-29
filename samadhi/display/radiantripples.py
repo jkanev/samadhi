@@ -69,12 +69,12 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
         self._counters = np.random.rand(len(self._x_positions))     # counters for starting new circles
 
         # the queue with circles for the screen
-        self._x_numbers = np.zeros(300, dtype=np.float32)     # x position on screen
-        self._y_numbers = np.zeros(300, dtype=np.float32)     # y position on screen
-        self._radii     = np.zeros(300, dtype=np.float32)     # radius on screen
-        self._red       = np.zeros(300, dtype=np.float32)      # red of rgb on screen
-        self._green     = np.zeros(300, dtype=np.float32)      # green of rgb on screen
-        self._blue      = np.zeros(300, dtype=np.float32)      # blue of rgb on screen
+        self._x_numbers = np.zeros(100, dtype=np.float32)     # x position on screen
+        self._y_numbers = np.zeros(100, dtype=np.float32)     # y position on screen
+        self._radii     = np.zeros(100, dtype=np.float32)     # radius on screen
+        self._red       = np.zeros(100, dtype=np.float32)      # red of rgb on screen
+        self._green     = np.zeros(100, dtype=np.float32)      # green of rgb on screen
+        self._blue      = np.zeros(100, dtype=np.float32)      # blue of rgb on screen
 
         self.set_parameters(settings)
 
@@ -96,33 +96,65 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
 
         # the vertex shader
         vertex_shader_id = gl.glCreateShader(gl.GL_VERTEX_SHADER)
-        shader_code = (" #version 330 core\n"
+        shader_code = (" #version 400 core\n"
                        " layout (location = 0) in vec2 xyCoords; "
                        " layout (location = 1) in float radius; "
                        " layout (location = 2) in vec3 vxColour; "
-                       " out vec4 colourSize; "
+                       " out vec4 colourSizeV; "
+                       " out vec2 pointCenterV; "
                        " void main() { "
                        "     gl_Position = vec4(xyCoords, 0.0, 1.0); "
-                       "     colourSize = vec4(vxColour, radius); "
+                       "     colourSizeV = vec4(vxColour, radius); "
+                       "     pointCenterV = xyCoords; "
                        " } ")
         gl.glShaderSource(vertex_shader_id, shader_code)
         gl.glCompileShader(vertex_shader_id)
         if gl.glGetShaderiv(vertex_shader_id, gl.GL_COMPILE_STATUS) == gl.GL_FALSE:
             print(f"Error creating radiant ripples vertex shader: {gl.glGetShaderInfoLog(vertex_shader_id)}.")
 
+        # the geometry shader
+        geometry_shader_id = gl.glCreateShader(gl.GL_GEOMETRY_SHADER)
+        shader_code = (" #version 400 core\n"
+                       " layout(points) in; "
+                       " layout(triangle_strip, max_vertices=6) out; "
+                       " in vec4 colourSizeV [ ]; "
+                       " in vec2 pointCenterV [ ]; "
+                       " out vec4 colourSize; "
+                       " out vec2 pointCenter; "
+                       " void main() { "
+                       "     colourSize = colourSizeV[0]; "
+                       "     pointCenter = pointCenterV[0]; "
+                       "     gl_Position = gl_in[0].gl_Position + vec4(-0.6, -0.6, 0.0, 0.0); EmitVertex(); "
+                       "     gl_Position = gl_in[0].gl_Position + vec4(-0.6, 0.6, 0.0, 0.0); EmitVertex(); "
+                       "     gl_Position = gl_in[0].gl_Position + vec4(0.6, 0.6, 0.0, 0.0); EmitVertex(); "
+                       "     gl_Position = gl_in[0].gl_Position + vec4(-0.6, -0.6, 0.0, 0.0); EmitVertex(); "
+                       "     gl_Position = gl_in[0].gl_Position + vec4(0.6, -0.6, 0.0, 0.0); EmitVertex(); "
+                       "     gl_Position = gl_in[0].gl_Position + vec4(0.6, 0.6, 0.0, 0.0); EmitVertex(); "
+                       "     EndPrimitive(); "
+                       " } ")
+        gl.glShaderSource(geometry_shader_id, shader_code)
+        gl.glCompileShader(geometry_shader_id)
+        if gl.glGetShaderiv(geometry_shader_id, gl.GL_COMPILE_STATUS) == gl.GL_FALSE:
+            print(f"Error creating radiant ripples geometry shader: {gl.glGetShaderInfoLog(geometry_shader_id)}.")
+
         # the fragment shader
         fragment_shader_id = gl.glCreateShader(gl.GL_FRAGMENT_SHADER)
-        shader_code = (" #version 330 core\n"
-                       " in vec4 colourSize; "
-                       " out vec4 fragColour; "
-                       " void main() { "
-                       "     vec2 uv = gl_PointCoord * 2.0 - 1.0;"
-                       "     float s = colourSize[3]; "
-                       "     float w = 100.0 / pow(s,2.0); "
-                       "     float r = length(uv); "
-                       "     float k = pow((s-r), 2.0); "
-                       "     float c = pow(2.0, -k*w); "
-                       "     fragColour = vec4(c*colourSize[0], c*colourSize[1], c*colourSize[2], c/pow(2.0, 5.0*s)); "
+        shader_code = (" #version 400 core\n"
+                       " in vec4 colourSize; \n"
+                       " in vec2 pointCenter; \n"
+                       " uniform float iResolution; \n"
+                       " uniform vec2 iWindowCorner; "
+                       " out vec4 fragColour; \n"
+                       " void main() { \n"
+                       "     vec2 uv = 2.0*(gl_FragCoord.xy-iWindowCorner)/iResolution - 1.0 - pointCenter; \n"
+                       "     float s = colourSize[3]; \n"
+                       "     float w = 100.0 / pow(s,2.0); \n"
+                       "     float r = 2.5*length(uv); \n"
+                       "     float k = pow((s-r), 2.0); \n"
+                       "     float c = pow(2.0, -k*w); \n"
+                       "     fragColour = vec4(c * colourSize[0], \n"
+                       "                       c * colourSize[1], \n"
+                       "                       c * colourSize[2], c/pow(2.0, 5.0*s)); \n"
                        " } ")
         gl.glShaderSource(fragment_shader_id, shader_code)
         gl.glCompileShader(fragment_shader_id)
@@ -132,10 +164,11 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
         # the shader program, linking both shaders
         self._shader_program_id = gl.glCreateProgram()
         gl.glAttachShader(self._shader_program_id, vertex_shader_id)
+        gl.glAttachShader(self._shader_program_id, geometry_shader_id)
         gl.glAttachShader(self._shader_program_id, fragment_shader_id)
         gl.glLinkProgram(self._shader_program_id)
         if gl.glGetProgramiv(self._shader_program_id, gl.GL_LINK_STATUS) == gl.GL_FALSE:
-            print("Error linking radiant ripples shaders.")
+            print(f"Error linking radiant ripples shaders: {gl.glGetProgramInfoLog(self._shader_program_id)}.")
         if not gl.glIsProgram(self._shader_program_id):
             print(f"Error: Shader program {self._shader_program_id} is not valid!")
 
@@ -178,8 +211,12 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
             gl.glViewport(*self._viewport)
 
         # actual drawing
+        loc = gl.glGetUniformLocation(self._shader_program_id, "iResolution")
+        gl.glUniform1f(loc, self._viewport[2])
+        loc = gl.glGetUniformLocation(self._shader_program_id, "iWindowCorner")
+        gl.glUniform2f(loc, self._viewport[0], self._viewport[1])
         gl.glEnable(gl.GL_BLEND)
-        gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA);
+        gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
         gl.glDrawArrays(gl.GL_POINTS, 0, len(self._x_numbers))
         error = gl.glGetError()
         if error != gl.GL_NO_ERROR:
