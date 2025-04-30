@@ -313,7 +313,7 @@ class Mind:
                                     break
 
                             if not success:
-                                print("montage not found")
+                                print("Montage not found, setting up arbitrary channel positions.")
 
                 if stream_type == 'SML':
 
@@ -404,6 +404,7 @@ class Mind:
             self._eegpsd_layout.addWidget(self._sqr_canvas, 0, 0, 1, 1)
             self._sqr_axes.set_ylim(bottom=-0.2, top=self._channels + 1.2)
             plt.subplots_adjust(top=0.95, bottom=0.05, left=0.1, right=1.0)
+            self._sqr_axes.set_xscale('symlog')
             self._sqr_axes.set_xticks([])
             self._sqr_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names_b, color=label_c, fontsize=8)
             self._sqr_axes.set_title('{} — rel. {:0.1f}-Seconds-Variance over {} minutes'.format(self._name,
@@ -436,7 +437,6 @@ class Mind:
             plt.subplots_adjust(top=0.95, bottom=0.05, left=0.15, right=0.99)
             self._eegpsd_layout.addWidget(self._fft_canvas, 0, 2, 1, 1)
             self._fft_axes.set_ylim(bottom=0.8, top=self._channels + 2.2)
-            #self._fft_axes.set_xscale('log')
             self._fft_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names_b, color=label_c, fontsize=8)
             self._fft_axes.set_title('rel. PSD', color=title_c, fontsize=10, pad=5)
             self._fft_axes.set_facecolor(outer_c)
@@ -451,6 +451,7 @@ class Mind:
             self._eegpsd_layout.addWidget(self._hst_canvas, 1, 0, 1, 2)
             self._hst_axes.set_ylim([-0.1, 5.1])
             self._hst_axes.set_xticks([])
+            self._hst_axes.set_xscale('symlog')
             self._hst_axes.set_yticks([0, 1, 2, 3, 4], ['δ', 'θ', 'α', 'β', 'γ'], color=label_c)
             self._hst_axes.set_title('{} — rel. PSD History over {} minutes'.format(self._name, self._history_length/60.0),
                                      color=title_c, fontsize=10, pad=5)
@@ -475,7 +476,7 @@ class Mind:
 
             self._eegpsd_layout.setColumnStretch(0, 3)
             self._eegpsd_layout.setColumnStretch(1, 2)
-            self._eegpsd_layout.setColumnStretch(2, 1)
+            self._eegpsd_layout.setColumnStretch(2, 2)
             self._eegpsd_layout.setRowStretch(0, 2)
             self._eegpsd_layout.setRowStretch(1, 1)
 
@@ -546,10 +547,14 @@ class Mind:
 
         # eeg + fft
         eeg_lines = self._eeg_axes.plot(self._eeg_data.T)  # the last channel in the simulator has the alpha intensity
-        sqr_lines = self._sqr_axes.plot(self._sqr_data.T)
+        self._eeg_axes.set_xlim(0, self._eeg_data.shape[1])
+        sqr_lines = self._sqr_axes.plot(np.arange(float(-self._sqr_data.shape[1]), 0.0), self._sqr_data.T)
+        self._sqr_axes.set_xlim(-float(self._sqr_data.shape[1]), -2.0)
         fft_lines = self._fft_axes.plot(self._fft_freqs, self._fft_data.T)
+        self._fft_axes.set_xlim(self._fft_freqs[0], self._fft_freqs[-1])
         bnd_bars = self._bnd_axes.bar([1, 2, 3, 4, 5], self._bnd_data)
-        hst_lines = self._hst_axes.plot(self._hst_data.T)
+        hst_lines = self._hst_axes.plot(np.arange(float(-self._hst_data.shape[1]), 0.0), self._hst_data.T)
+        self._hst_axes.set_xlim(-self._hst_data.shape[1], -2.0)
 
         background = self._parent_tabwidget.parent().parent().palette().base().color()
         brightness = sum(background.getRgb()[:3]) / (3 * 255.0)
@@ -737,7 +742,6 @@ class Mind:
                     with self._sqr_lock:
                         self._sqr_data = np.roll(self._sqr_data, -1)
                         var = self._eeg_data.var(1)
-                        var -= var.min()
                         self._sqr_data[:, -1] = (var / (var.sum() or 1.0) ) * self._channels    # ensure each channel goes from 0.0 to 1.0
                     with self._fft_lock:
                         eeg_min = self._eeg_data.min()

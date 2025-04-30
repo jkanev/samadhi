@@ -154,11 +154,11 @@ class DancingDotsLayout(QtWidgets.QGridLayout):
         # add default settings
         settings = {
             'timesmoothing': 0.95, 'power': 2.0,
-            'freq0':  2, 'rotation0':  0.7, 'incolour0': (255,   0,   0), 'outcolour0': ( 0, 64, 64),
-            'freq1':  3, 'rotation1': -1.0, 'incolour1': (255, 128,   0), 'outcolour1': ( 0, 32, 64),
-            'freq2':  4, 'rotation2':  0.6, 'incolour2': (255, 255,   0), 'outcolour2': ( 0,  0, 64),
-            'freq3':  8, 'rotation3': -0.8, 'incolour3': (  0, 255,   0), 'outcolour3': (64,  0, 64),
-            'freq4': 13, 'rotation4':  0.5, 'incolour4': (  0, 255, 128), 'outcolour4': (64,  0, 32),
+            'freq0':  2, 'rotation0':  0.75, 'incolour0': (255,   0,   0), 'outcolour0': ( 0, 63, 63),
+            'freq1':  3, 'rotation1': -1.0, 'incolour1': (255, 127,   0), 'outcolour1': ( 0, 31, 63),
+            'freq2':  4, 'rotation2':  0.5, 'incolour2': (255, 255,   0), 'outcolour2': ( 0,  0, 63),
+            'freq3':  8, 'rotation3': -0.5, 'incolour3': (  0, 255,   0), 'outcolour3': (63,  0, 63),
+            'freq4': 13, 'rotation4':  0.25, 'incolour4': (  0, 255, 127), 'outcolour4': (63,  0, 31),
         }
         self.set_settings(settings)
 

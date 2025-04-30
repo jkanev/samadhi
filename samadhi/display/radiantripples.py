@@ -67,7 +67,7 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
             self._timer.stop()
 
         self._wavespeed = 0.001 * settings['wavespeed']
-        self._wavefrequency = 0.005 * settings['wavefrequency']
+        self._wavefrequency = 0.01 * settings['wavefrequency']
 
         # restart timer again
         if self._timer:
@@ -209,7 +209,11 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
             print(f"glDrawArrays error: {error}")
 
         # next step
-        self._counters -= self._wavefrequency * self._get_data()[:,-1]
+        data = self._get_data()[:,-1]
+        data -= data.min()
+        data /= data.max() or 1.0
+        self._counters -= self._wavefrequency * data
+        print(self._counters)
         for n in range(0, len(self._counters)):
             if self._counters[n] < 0.0:
                 self._x_numbers = np.roll(self._x_numbers, 1)

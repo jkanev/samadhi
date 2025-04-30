@@ -223,7 +223,7 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
         freqs = self._get_data()
         freqs -= freqs.min()
         freqs = freqs ** self._softmax
-        freqs /= freqs.sum()
+        freqs /= freqs.sum()     # necessary for the colours to add up to 1.0
         self._running_mean = self._smooth * self._running_mean + (1.0-self._smooth) * freqs
         [c1, c2, c3, c4, c5] = self._running_mean
         c6 = 0.1 * (c1 - c2 + c3 - c4 + c5)  # c6 - amount of in/out movement
