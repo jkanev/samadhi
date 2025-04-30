@@ -327,11 +327,11 @@ class Mind:
                     self._streaming = True
                     thstr = threading.Thread(target=self._simulate_eeg)
                     thstr.start()
-                    self._2d_layout = [[-1.0, 1.0, 1.0, 0.5, 0.0],
-                                       [1.0, 1.0, 0.5, 1.0, 0.0],
+                    self._2d_layout = [[-0.5, 0.5, 1.0, 0.5, 0.0],
+                                       [0.5, 0.5, 0.5, 1.0, 0.0],
                                        [0.0, 0.0, 0.5, 0.5, 0.5],
-                                       [-1.0, -1.0, 0.5, 0.0, 1.0],
-                                       [1.0, -1.0, 0.0, 0.5, 1.0]]
+                                       [-0.5, -0.5, 0.5, 0.0, 1.0],
+                                       [0.5, -0.5, 0.0, 0.5, 1.0]]
 
                 # start analysis thread
                 thanal = threading.Thread(target=self._analyse_psd)
@@ -405,8 +405,8 @@ class Mind:
             self._sqr_axes.set_ylim(bottom=-0.2, top=self._channels + 1.2)
             plt.subplots_adjust(top=0.95, bottom=0.05, left=0.1, right=1.0)
             self._sqr_axes.set_xticks([])
-            self._sqr_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names_b, color=label_c)
-            self._sqr_axes.set_title('{} -- {:0.1f}-Seconds-Variance over {} minutes'.format(self._name,
+            self._sqr_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names_b, color=label_c, fontsize=8)
+            self._sqr_axes.set_title('{} — rel. {:0.1f}-Seconds-Variance over {} minutes'.format(self._name,
                                                                                              self._data_seconds,
                                                                              self._history_length/60.0),
                                      color=title_c, fontsize=10, pad=5)
@@ -423,7 +423,7 @@ class Mind:
             plt.subplots_adjust(top=0.95, bottom=0.05, left=0.0, right=0.99)
             self._eeg_axes.set_xticks([])
             self._eeg_axes.set_yticks(ticks=[])
-            self._eeg_axes.set_title('{} -- EEG over {:0.1f} Seconds'.format(self._name, self._data_seconds),
+            self._eeg_axes.set_title('{} — EEG over {:0.1f} Seconds'.format(self._name, self._data_seconds),
                                      color=title_c, fontsize=10, pad=5)
             self._eeg_axes.set_facecolor(outer_c)
             figure.set_facecolor(passepartout_c)
@@ -437,8 +437,8 @@ class Mind:
             self._eegpsd_layout.addWidget(self._fft_canvas, 0, 2, 1, 1)
             self._fft_axes.set_ylim(bottom=0.8, top=self._channels + 2.2)
             #self._fft_axes.set_xscale('log')
-            self._fft_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names_b, color=label_c)
-            self._fft_axes.set_title('Current PSD', color=title_c, fontsize=10, pad=5)
+            self._fft_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names_b, color=label_c, fontsize=8)
+            self._fft_axes.set_title('rel. PSD', color=title_c, fontsize=10, pad=5)
             self._fft_axes.set_facecolor(outer_c)
             figure.set_facecolor(passepartout_c)
             plt.setp(self._fft_axes.spines.values(), color=frame_c)
@@ -452,7 +452,7 @@ class Mind:
             self._hst_axes.set_ylim([-0.1, 5.1])
             self._hst_axes.set_xticks([])
             self._hst_axes.set_yticks([0, 1, 2, 3, 4], ['δ', 'θ', 'α', 'β', 'γ'], color=label_c)
-            self._hst_axes.set_title('{} -- PSD History over {} minutes'.format(self._name, self._history_length/60.0),
+            self._hst_axes.set_title('{} — rel. PSD History over {} minutes'.format(self._name, self._history_length/60.0),
                                      color=title_c, fontsize=10, pad=5)
             self._hst_axes.set_facecolor(outer_c)
             figure.set_facecolor(passepartout_c)
@@ -467,7 +467,7 @@ class Mind:
             self._bnd_axes.set_ylim([0.0, 1.1])
             self._bnd_axes.set_xticks([1, 2, 3, 4, 5], ['δ', 'θ', 'α', 'β', 'γ'], color=label_c)
             self._bnd_axes.set_yticks([])
-            self._bnd_axes.set_title('Frequency Band Power'.format(self._data_seconds),
+            self._bnd_axes.set_title('rel. Frequency Band Power'.format(self._data_seconds),
                                      color=title_c, fontsize=10, pad=5)
             self._bnd_axes.set_facecolor(outer_c)
             figure.set_facecolor(passepartout_c)
@@ -589,7 +589,7 @@ class Mind:
                 with self._sqr_lock:
                     sqr_height = self._sqr_data.max() or 1.0
                     for c in range(0, len(sqr_lines)):
-                        sqr_lines[c].set_ydata(self._sqr_data[c] / sqr_height + float(self._channels - c))
+                        sqr_lines[c].set_ydata(self._sqr_data[c] / sqr_height + float(self._channels - c) - 0.5)
                 with self._fft_lock:
                     self._fft_channel_height = 0.5*(self._fft_data.max() - self._fft_data.min())
                     for c in range(0, len(fft_lines)):
@@ -737,8 +737,8 @@ class Mind:
                     with self._sqr_lock:
                         self._sqr_data = np.roll(self._sqr_data, -1)
                         var = self._eeg_data.var(1)
-                        var /= var.sum() or 1.0
-                        self._sqr_data[:, -1] = (var - var.min()) * self._channels    # ensure each channel goes from 0.0 to 1.0
+                        var -= var.min()
+                        self._sqr_data[:, -1] = (var / (var.sum() or 1.0) ) * self._channels    # ensure each channel goes from 0.0 to 1.0
                     with self._fft_lock:
                         eeg_min = self._eeg_data.min()
                         eeg_max = self._eeg_data.max()
@@ -794,6 +794,10 @@ class Mind:
                 for s in self._available_streams:
                     if s not in entries:
                         self._combobox_streamname.addItem(s)
+                if len(entries):
+                    self._checkbox_connect_lsl.setEnabled(True)
+                else:
+                    self._checkbox_connect_lsl.setEnabled(False)
 
     def get_bnd_data(self):
         return self._bnd_data

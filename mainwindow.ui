@@ -98,6 +98,9 @@
            </item>
            <item row="3" column="0">
             <widget class="QCheckBox" name="checkBoxConnect01">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
              <property name="text">
               <string>Click to connect</string>
              </property>
@@ -178,8 +181,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>346</width>
-         <height>210</height>
+         <width>400</width>
+         <height>824</height>
         </rect>
        </property>
        <attribute name="label">

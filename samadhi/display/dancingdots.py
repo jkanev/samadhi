@@ -31,7 +31,7 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
     _M = 0
     _N = 0
     _softmax = 3.0
-    _smooth = 0.8
+    _smooth = 0.95
     _running_mean = np.ones(5)
     _viewport = [0.0, 0.0, 0.0, 0.0]
     _update_viewport = False
@@ -90,6 +90,7 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
         self._k = np.array([0.0, 0.0, 0.0, 0.0, 0.0])
 
         self._softmax = settings['power']
+        self._smooth = settings['timesmoothing']
         for n in range(0, 5):
 
             # colours

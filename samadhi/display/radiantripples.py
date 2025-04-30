@@ -110,12 +110,12 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
                        " void main() { "
                        "     colourSize = colourSizeV[0]; "
                        "     pointCenter = pointCenterV[0]; "
-                       "     gl_Position = gl_in[0].gl_Position + vec4(-0.6, -0.6, 0.0, 0.0); EmitVertex(); "
-                       "     gl_Position = gl_in[0].gl_Position + vec4(-0.6, 0.6, 0.0, 0.0); EmitVertex(); "
-                       "     gl_Position = gl_in[0].gl_Position + vec4(0.6, 0.6, 0.0, 0.0); EmitVertex(); "
-                       "     gl_Position = gl_in[0].gl_Position + vec4(-0.6, -0.6, 0.0, 0.0); EmitVertex(); "
-                       "     gl_Position = gl_in[0].gl_Position + vec4(0.6, -0.6, 0.0, 0.0); EmitVertex(); "
-                       "     gl_Position = gl_in[0].gl_Position + vec4(0.6, 0.6, 0.0, 0.0); EmitVertex(); "
+                       "     gl_Position = gl_in[0].gl_Position + vec4(-0.5, -0.5, 0.0, 0.0); EmitVertex(); "
+                       "     gl_Position = gl_in[0].gl_Position + vec4(-0.5, 0.5, 0.0, 0.0); EmitVertex(); "
+                       "     gl_Position = gl_in[0].gl_Position + vec4(0.5, 0.5, 0.0, 0.0); EmitVertex(); "
+                       "     gl_Position = gl_in[0].gl_Position + vec4(-0.5, -0.5, 0.0, 0.0); EmitVertex(); "
+                       "     gl_Position = gl_in[0].gl_Position + vec4(0.5, -0.5, 0.0, 0.0); EmitVertex(); "
+                       "     gl_Position = gl_in[0].gl_Position + vec4(0.5, 0.5, 0.0, 0.0); EmitVertex(); "
                        "     EndPrimitive(); "
                        " } ")
         gl.glShaderSource(geometry_shader_id, shader_code)

@@ -268,22 +268,13 @@ class RadiantRipplesLayout(QtWidgets.QGridLayout):
                                     1, 0, 1, 1)
 
 
-        # circular frequency
-        spin_timesmoothing = QtWidgets.QDoubleSpinBox()
-        spin_timesmoothing.setRange(0.0, 1.0)
-        spin_timesmoothing.setSingleStep(0.02)
-        spin_timesmoothing.valueChanged.connect(self.update_rripples_display)
-        settingslayout.addWidget(spin_timesmoothing, 2, 0, 1, 1)
-        settingslayout.addWidget(QtWidgets.QLabel("Time smoothing"), 2, 1, 1, 1)
-        self._settings['timesmoothing'] = spin_timesmoothing
-
         # wave speed
         spin_wavespeed = QtWidgets.QDoubleSpinBox()
         spin_wavespeed.setRange(0.0, 20.0)
         spin_wavespeed.setSingleStep(0.5)
         spin_wavespeed.valueChanged.connect(self.update_rripples_display)
-        settingslayout.addWidget(spin_wavespeed, 2, 2, 1, 1)
-        settingslayout.addWidget(QtWidgets.QLabel("Wave Speed"), 2, 3, 1, 1)
+        settingslayout.addWidget(spin_wavespeed, 2, 0, 1, 1)
+        settingslayout.addWidget(QtWidgets.QLabel("Wave Speed"), 2, 1, 1, 1)
         self._settings['wavespeed'] = spin_wavespeed
 
         # wave frequency
@@ -291,13 +282,13 @@ class RadiantRipplesLayout(QtWidgets.QGridLayout):
         spin_wavefrequency.setRange(0.0, 20.0)
         spin_wavefrequency.setSingleStep(0.5)
         spin_wavefrequency.valueChanged.connect(self.update_rripples_display)
-        settingslayout.addWidget(spin_wavefrequency, 3, 0, 1, 1)
-        settingslayout.addWidget(QtWidgets.QLabel("Wave Frequency"), 3, 1, 1, 1)
+        settingslayout.addWidget(spin_wavefrequency, 2, 2, 1, 1)
+        settingslayout.addWidget(QtWidgets.QLabel("Wave Frequency"), 2, 3, 1, 1)
         self._settings['wavefrequency'] = spin_wavefrequency
 
         # add default settings
         settings = {
-            'timesmoothing': 0.95, 'wavespeed': 10.0, 'wavefrequency': 10.0,
+            'wavespeed': 10.0, 'wavefrequency': 10.0,
         }
         self.set_settings(settings)
 
