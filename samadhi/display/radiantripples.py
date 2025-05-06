@@ -213,7 +213,6 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
         data -= data.min()
         data /= data.max() or 1.0
         self._counters -= self._wavefrequency * data
-        print(self._counters)
         for n in range(0, len(self._counters)):
             if self._counters[n] < 0.0:
                 self._x_numbers = np.roll(self._x_numbers, 1)
