@@ -232,7 +232,8 @@ class Mind:
                                 self._channels = s.n_channels
                                 self._sampling_rate = s.sfreq
                                 self._samples = int(self._data_seconds * self._sampling_rate)
-                                self._eeg_stream = Stream(self._data_seconds, name=s_name, stype=s.stype, source_id=s.source_id)
+                                self._eeg_stream = Stream(bufsize=self._data_seconds, name=s_name, stype=s.stype,
+                                                          source_id=s.source_id)
 
                                 # connect to stream
                                 self._eeg_stream.connect(acquisition_delay=0.1, processing_flags="all")
@@ -248,8 +249,10 @@ class Mind:
                                 self._streaming = False
                                 self._checkbox_connect_lsl.setText("Connection error")
                                 QtWidgets.QMessageBox.warning(None, 'Connection Error',
-                                                              f'Problem connecting to the LSL stream: {e}'
-                                                              '.\nPlease check your firewall setting or try again')
+                                                              f'Problem connecting to the LSL stream: {e}\n'
+                                                              '.Please check your firewall setting or try again.\n'
+                                                              f'name: {s_name}\ntype: {s.s_type}\n'
+                                                              f'source id: {s.source_id}')
                                 self._checkbox_connect_lsl.setText("Click to connect")
 
                             # get montage
