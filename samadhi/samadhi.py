@@ -226,7 +226,7 @@ class Mind:
                     # create a new inlet to read from the stream
                     for s in streams:
                         s_name, s_id, s_channels, s_rate = stream_name.split(' | ')
-                        if s.source_id == s_id:
+                        if s.source_id == s_id and s_name == s.name and s_channels == "{} Channels".format(s.n_channels):
                             try:
                                 # set gui info
                                 self._channels = s.n_channels
@@ -249,10 +249,12 @@ class Mind:
                                 self._streaming = False
                                 self._checkbox_connect_lsl.setText("Connection error")
                                 QtWidgets.QMessageBox.warning(None, 'Connection Error',
-                                                              f'Problem connecting to the LSL stream: {e}\n'
-                                                              '.Please check your firewall setting or try again.\n'
-                                                              f'name: {s_name}\ntype: {s.s_type}\n'
-                                                              f'source id: {s.source_id}')
+                                                              f'Problem connecting to the LSL stream: {e}\n\n'
+                                                              'Please check your firewall setting or try again.\n\n'
+                                                              'Additional information:\n'
+                                                              f'name (requested/found): {s_name}/{s.name}\n'
+                                                              f'type (found): {s.stype}\n'
+                                                              f'source id (requested/found): {s_id} / {s.source_id}')
                                 self._checkbox_connect_lsl.setText("Click to connect")
 
                             # get montage
