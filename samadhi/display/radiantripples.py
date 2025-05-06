@@ -132,7 +132,7 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
                        " uniform vec2 iWindowCorner; "
                        " out vec4 fragColour; \n"
                        " void main() { \n"
-                       "     vec2 uv = 2.0*(gl_FragCoord.xy-iWindowCorner)/iResolution - 1.0 - pointCenter; \n"
+                       "     vec2 uv = 2.0*(gl_FragCoord.xy-iWindowCorner)/iResolution - 1.0 - pointCenter.xy; \n"
                        "     float s = colourSize[3]; \n"
                        "     float w = 100.0 / pow(s,2.0); \n"
                        "     float r = 2.5*length(uv); \n"
@@ -194,11 +194,11 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
         gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT | gl.GL_STENCIL_BUFFER_BIT)
         gl.glClearColor(0.0, 0.0, 0.0, 1.0)
         if self._update_viewport:
-            gl.glViewport(*self._viewport)
+            gl.glViewport(0, 0, self._viewport[2], self._viewport[3])
 
         # actual drawing
         loc = gl.glGetUniformLocation(self._shader_program_id, "iResolution")
-        gl.glUniform1f(loc, self._viewport[2])
+        gl.glUniform1f(loc, min(self._viewport[2], self._viewport[3]))
         loc = gl.glGetUniformLocation(self._shader_program_id, "iWindowCorner")
         gl.glUniform2f(loc, self._viewport[0], self._viewport[1])
         gl.glEnable(gl.GL_BLEND)
@@ -235,10 +235,10 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
         x = (width - size) // 2
         y = (height - size) // 2
         gl.glUseProgram(self._shader_program_id)
-        gl.glViewport(x, y, size, size)
-        self._viewport = [x, y, size, size]
+        gl.glViewport(0, 0, width, height)    # ignore x and y in the actual viewport call
+        self._viewport = [x, y, width, height]      # but use it in calculations
         self._update_viewport = True
-        print(f"glViewport set to x={x}, y={y}, width={size}, height={size}")
+        print(f"glViewport set to x={0}, y={0}, width={width}, height={height}")
 
     def start(self):
         self._timer = QtCore.QTimer()
