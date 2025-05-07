@@ -22,7 +22,6 @@ import re
 mpl_use("QtAgg")
 
 
-
 class Mind:
     """
     Implements a complete data and calculation set of a single human.
@@ -32,7 +31,6 @@ class Mind:
     _name = ""           # the person's name
 
     # data streaming related
-    _2d_layout = []      # x,y coordinates of channels, will be written after connecting to the stream
     _streaming = False   # whether we're streaming currently
     _resolving = True    # whether we're looking for LSL streams
     _showing_eegpsd = False     # whether we're showing the eeg/psd tab
@@ -42,7 +40,9 @@ class Mind:
     _fft_resolution = 0  # resolution (distance of one FFT bin to the next)
     _fft_max = 0         # max index for fft (upper border of highest frequency band)
     _fft_running_mean = None
-    _channels = 1        # number of channels in the data
+    _channels = 0        # number of channels in the data
+    _2d_layout = []      # x,y coordinates of channels, will be written after connecting to the stream
+    _ch_names = []       # channel names
     _history_length = 600.0   # length of history buffer in seconds
     _eeg_data = []       # pointer to the buffer that has just been filled, either data_a or data_b
     _eeg_lock = threading.Lock()    # lock for eeg data
@@ -57,7 +57,6 @@ class Mind:
     _sqr_data = []       # mean square activity
     _sqr_lock = threading.Lock()
     _eeg_stream = None   # the lsl eeg input stream inlet, if in eeg mode
-    _clc_stream = None   # the lsl calculation output stream outlet, if in calculation mode
 
     # normalisation
     _bnd_smoothing = 0.95   #
@@ -261,39 +260,59 @@ class Mind:
                             mtgs = chn.get_builtin_montages()
                             success = False
                             for montage_name in mtgs:
+                                bad_channels = 0.0     # count the number of bad channels, reject if > 5
                                 try:
                                     # get default positions
                                     success = True
                                     mtg = chn.make_standard_montage(montage_name)
 
-                                    # create 2-d positions from montage
+                                    # get names and  2-d positions from montage
                                     layout = {}
                                     for ch, crd in mtg.get_positions()['ch_pos'].items():
                                         theta = math.atan2(crd[1], math.sqrt(crd[2] ** 2 + crd[0] ** 2))
                                         phi = math.atan2(crd[0], crd[2])
                                         # x, y = math.log((1 + math.sin(phi)) / (1 - math.sin(phi))), theta     # Mercator projection
                                         # x, y = phi, theta  # equirectangular projection
-                                        x, y = phi/(1.0 + theta**4.0), theta  # equirectangular projection, but moving frontal and occipital closer together for better looks
+                                        x, y = phi/(1.0 + theta ** 4.0), theta   # equirectangular projection, but moving frontal and occipital closer together for better looks
                                         layout[ch.lower()] = (x, y)
 
-                                    # match with current montage
-                                    xmax = -1.0
-                                    ymax = -1.0
-                                    xmin = 1.0
-                                    ymin = 1.0
-                                    for ch in self._eeg_stream.ch_names:
-                                        label = re.match('^(EEG)? ?([0-9a-zA-Z]*)', ch)[2].lower()
-                                        x, y = layout[label]
-                                        self._2d_layout += [[x, y]]
-                                        if xmin > x:
-                                            xmin = x
-                                        if ymin > y:
-                                            ymin = y
-                                        if xmax < x:
-                                            xmax = x
-                                        if ymax < y:
-                                            ymax = y
+                                    # get channel names from our data (or make up own)
+                                    try:
+                                        self._ch_names = self._eeg_stream.ch_names
+                                    except:
+                                        self._ch_names = [f'Ch{c+1}' for c in range(0, self._channels)]
+                                        success = False
+                                        break
 
+                                    # match every channel in our data with the montage
+                                    for ch in self._eeg_stream.ch_names:
+
+                                        # find channel position, or, if it is not in the montage, put it to the side
+                                        label = re.match('^(EEG)? ?([0-9a-zA-Z]*)', ch)[2].lower()
+                                        if label in layout.keys():
+                                            x, y = layout[label]
+                                        else:
+                                            x,y = -2.0 + bad_channels, -2.0
+                                            bad_channels += 1.0
+                                            print(f'Setting "{label}" to position ({x},{y}).')
+
+                                        # if there are more than five non-montage channels, the montage doesn't fit
+                                        if bad_channels > 5:
+                                            success = False
+                                            self._2d_layout = []
+                                            break
+
+                                        # add the position to our list, record min and max
+                                        self._2d_layout += [[x, y]]
+
+                                    # find min and max 2d positions, for scaling
+                                    xmin = min([a[0] for a in self._2d_layout])
+                                    xmax = max([a[0] for a in self._2d_layout])
+                                    ymin = min([a[1] for a in self._2d_layout])
+                                    ymax = max([a[1] for a in self._2d_layout])
+
+                                    # add channel colours according to postions:
+                                    # starboard - green, portside - red, bow - yellow, stern - blue  :)
                                     for ch in self._2d_layout:
 
                                         # scale existing channels to -1,1 box
@@ -313,12 +332,33 @@ class Mind:
 
                                 except KeyError:
                                     success = False
+                                    self._2d_layout = []
 
                                 if success:
                                     break
 
                             if not success:
                                 print("Montage not found, setting up arbitrary channel positions.")
+                                cols = math.floor(math.sqrt(self._channels))
+                                rows = math.ceil(self._channels / cols)
+                                for r in range(0, rows):
+                                    for c in range(0, cols):
+                                        if r * rows + c < self._channels:
+                                            x = -1.0 + 2.0*c/(cols-1.0)
+                                            y = 1.0 - 2.0*r/(rows-1.0)
+                                            red = (-x / 2.0) + 0.5  # red from left (1.0) to right (0.0)
+                                            green = (x / 2.0) + 0.5  # green from right (1.0) to left (0.0)
+                                            yellow = (y / 2.0) + 0.5  # yellow from front (1.0) to back (0.0)
+                                            blue = (-y / 2.0) + 0.5  # blue from back (1.0) to front (0.0)
+                                            red = max(red, 0.5 * yellow)
+                                            green = max(green, 0.5 * yellow)
+                                            self._2d_layout += [[
+                                                x / (1.0 + 0.5 * y ** 2.0),
+                                                y / (1.0 + 0.5 * x ** 2.0),
+                                                min(1.0, 2.0 * red / (red + green + blue)),
+                                                min(1.0, 2.0 * green / (red + green + blue)),
+                                                2.0 * blue / (red + green + blue)
+                                            ]]
 
                 if stream_type == 'SML':
 
@@ -382,13 +422,6 @@ class Mind:
             self._parent_tabwidget.setTabText(self._parent_tabwidget.indexOf(self._eegpsd_tab),
                                               self._name + " -- EEG / Spectrum")
 
-            # channel names
-            c_names = ((self._eeg_stream and self._eeg_stream.ch_names)
-                       or ['C{}'.format(n+1) for n in range(0, self._channels)])
-            c_names_b = []
-            for c in c_names:
-                c_names_b = [c] + c_names_b
-
             # colours
             frame_c = (0.25, 0.25, 0.25)
             background = self._parent_tabwidget.parent().parent().palette().base().color()
@@ -411,7 +444,7 @@ class Mind:
             plt.subplots_adjust(top=0.95, bottom=0.05, left=0.1, right=1.0)
             self._sqr_axes.set_xscale('symlog')
             self._sqr_axes.set_xticks([])
-            self._sqr_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names_b, color=label_c, fontsize=8)
+            self._sqr_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=self._ch_names[::-1], color=label_c, fontsize=8)
             self._sqr_axes.set_title('{} — rel. {:0.1f}-Seconds-Variance over {} minutes'.format(self._name,
                                                                                              self._data_seconds,
                                                                              self._history_length/60.0),
@@ -441,8 +474,8 @@ class Mind:
             self._fft_axes = figure.add_subplot(111)
             plt.subplots_adjust(top=0.95, bottom=0.05, left=0.15, right=0.99)
             self._eegpsd_layout.addWidget(self._fft_canvas, 0, 2, 1, 1)
-            self._fft_axes.set_ylim(bottom=0.8, top=self._channels + 2.2)
-            self._fft_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=c_names_b, color=label_c, fontsize=8)
+            self._fft_axes.set_ylim(bottom=-0.2, top=self._channels + 1.2)
+            self._fft_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=self._ch_names[::-1], color=label_c, fontsize=8)
             self._fft_axes.set_title('rel. PSD', color=title_c, fontsize=10, pad=5)
             self._fft_axes.set_facecolor(outer_c)
             figure.set_facecolor(passepartout_c)
@@ -603,7 +636,7 @@ class Mind:
                 with self._fft_lock:
                     self._fft_channel_height = 0.5*(self._fft_data.max() - self._fft_data.min())
                     for c in range(0, len(fft_lines)):
-                        fft_lines[c].set_ydata(self._fft_data[c]/self._fft_channel_height + float(self._channels - c))
+                        fft_lines[c].set_ydata(self._fft_data[c] / self._fft_channel_height + float(self._channels - c) - 0.5)
                 with self._hst_lock:
                     hst_height = self._hst_data.max()
                     hst_height = hst_height or 1.0
