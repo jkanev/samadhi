@@ -294,7 +294,6 @@ class Mind:
                                         else:
                                             x,y = -2.0 + bad_channels, -2.0
                                             bad_channels += 1.0
-                                            print(f'Setting "{label}" to position ({x},{y}).')
 
                                         # if there are more than five non-montage channels, the montage doesn't fit
                                         if bad_channels > 5:
@@ -306,35 +305,39 @@ class Mind:
                                         self._2d_layout += [[x, y]]
 
                                     # find min and max 2d positions, for scaling
-                                    xmin = min([a[0] for a in self._2d_layout])
-                                    xmax = max([a[0] for a in self._2d_layout])
-                                    ymin = min([a[1] for a in self._2d_layout])
-                                    ymax = max([a[1] for a in self._2d_layout])
+                                    if len(self._2d_layout):
+                                        xmin = min([a[0] for a in self._2d_layout])
+                                        xmax = max([a[0] for a in self._2d_layout])
+                                        ymin = min([a[1] for a in self._2d_layout])
+                                        ymax = max([a[1] for a in self._2d_layout])
 
-                                    # add channel colours according to postions:
-                                    # starboard - green, portside - red, bow - yellow, stern - blue  :)
-                                    for ch in self._2d_layout:
+                                        # add channel colours according to postions:
+                                        # starboard - green, portside - red, bow - yellow, stern - blue  :)
+                                        for ch in self._2d_layout:
 
-                                        # scale existing channels to -1,1 box
-                                        ch[0] = 2.0 * (ch[0] - xmin) / (xmax - xmin) - 1.0
-                                        ch[1] = 2.0 * (ch[1] - ymin) / (ymax - ymin) - 1.0
+                                            # scale existing channels to -1,1 box
+                                            ch[0] = 2.0 * (ch[0] - xmin) / (xmax - xmin) - 1.0
+                                            ch[1] = 2.0 * (ch[1] - ymin) / (ymax - ymin) - 1.0
 
-                                        # calculate channel colour based on topology
-                                        red = (-ch[0] / 2.0) + 0.5  # red from left (1.0) to right (0.0)
-                                        green = (ch[0] / 2.0) + 0.5  # green from right (1.0) to left (0.0)
-                                        yellow = (ch[1] / 2.0) + 0.5  # yellow from front (1.0) to back (0.0)
-                                        blue = (-ch[1] / 2.0) + 0.5  # blue from back (1.0) to front (0.0)
-                                        red = max(red, 0.5 * yellow)
-                                        green = max(green, 0.5 * yellow)
-                                        ch += [min(1.0, 2.0 * red / (red+green+blue))]
-                                        ch += [min(1.0, 2.0 * green / (red+green+blue))]
-                                        ch += [2.0 * blue / (red+green+blue)]
+                                            # calculate channel colour based on topology
+                                            red = (-ch[0] / 2.0) + 0.5  # red from left (1.0) to right (0.0)
+                                            green = (ch[0] / 2.0) + 0.5  # green from right (1.0) to left (0.0)
+                                            yellow = (ch[1] / 2.0) + 0.5  # yellow from front (1.0) to back (0.0)
+                                            blue = (-ch[1] / 2.0) + 0.5  # blue from back (1.0) to front (0.0)
+                                            red = max(red, 0.5 * yellow)
+                                            green = max(green, 0.5 * yellow)
+                                            ch += [min(1.0, 2.0 * red / (red+green+blue))]
+                                            ch += [min(1.0, 2.0 * green / (red+green+blue))]
+                                            ch += [2.0 * blue / (red+green+blue)]
+                                    else:
+                                        success = False
 
                                 except KeyError:
                                     success = False
                                     self._2d_layout = []
 
                                 if success:
+                                    print(f"Using montage {montage_name}, with {bad_channels} unknown channels.")
                                     break
 
                             if not success:
