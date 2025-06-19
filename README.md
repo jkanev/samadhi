@@ -16,7 +16,7 @@ This means the frequency of the spectrum band is represented in the symmetry of 
 |:-----------------------------------------------------------------:|:----------------------------------------------------------------:|:----------------------------------------------------------------:|:---------------------------------------------------------------:|:----------------------------------------------------------------:|
 | ![Image: Main page with EEG/PSD Tab](doc/dancing-dots-delta.png)  | ![Image: Main page with EEG/PSD Tab](doc/dancing-dots-theta.png) | ![Image: Main page with EEG/PSD Tab](doc/dancing-dots-alpha.png) | ![Image: Main page with EEG/PSD Tab](doc/dancing-dots-beta.png) | ![Image: Main page with EEG/PSD Tab](doc/dancing-dots-gamma.png) |
 
-The actual display will be a superposition of these. The dancing dot flower display runs first inside
+The actual display will be a superposition of these. Inside and outside colours are configurable per frequency band, symmetry pattern are configurable, and in/out motion direction. dancing dot flower display runs first inside
 the window, a mouse click brings it to full-screen
 (and back again). This display uses hardware acceleration (OpenGL).
 
@@ -30,7 +30,7 @@ Ripples are expanding and fading. High-variance channels will produce many rippl
 |:------------------------------------------------------------------:|:------------------------------------------------------------------------------:|:----------------------------------------------------------------------:|:---------------------------------------------------------------------:|
 | ![Image: Radiant ripples frontal](doc/radiant-ripples-frontal.png) | ![Image: Radiant ripples left temporal](doc/radiant-ripples-left-temporal.png) | ![Image: Radiant ripples occipetal](doc/radiant-ripples-occipetal.png) | ![Image: Radiant ripples parietal](doc/radiant-ripples-parietal.png)  |
 
-A click into the display brings it to full-screen, another click brings it back. This display uses hardware acceleration (OpenGL).
+Ripple frequency and speed are configurable. A click into the display brings it to full-screen, another click brings it back. This display uses hardware acceleration (OpenGL).
 
 ### Display: Standard EEG and Spectrum
 
