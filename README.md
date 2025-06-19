@@ -58,9 +58,19 @@ Data is received from the stream in chunks of 200 ms. The
 
 ### Installing and Running
 
+#### Python Package
+
 The software is a python package on PyPi. To install and run, do:
 `pip install samadhi`
 `python3 -m samadhi`
 To uninstall:
 `pip uninstall samadhi`
 (Non-Python installers for Linux and Windows will follow)
+
+#### Python Source
+
+Download the code from the repository, create a virtual environment (at your choice), install dependencies from the project.toml file, then run `python3 -m samadhi` the same way as after installing a package. Please note, sice the mne-lsl library is in the dependencies, there's a very nice LSL simulator that plays an .edf file (mne-lsl player).
+
+#### Software to run directly
+
+In the releases section of the github project page there are software versions for Linux and Windows, to be run straight after downloading (made with pyinstaller).
