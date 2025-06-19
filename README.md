@@ -43,7 +43,8 @@ the window, a mouse click brings it to full-screen
 ![Image: Radiant Ripples Tab](doc/main-window-radiant-ripples.png)
 High-variance channels will produce many ripples, low variance channels few, or none. The ripples are colour-coded with a nautical colour scheme (starboard — green, portside — red, bow — yellow, stern — blue).
 
-|                               Frontal                              |                                  Left Temporal                                 |                              Occipetao                                 |                              Parietal                                 | |:------------------------------------------------------------------:|:------------------------------------------------------------------------------:|:----------------------------------------------------------------------:|:---------------------------------------------------------------------:|
+|                               Frontal                              |                                  Left Temporal                                 |                              Occipetal                                 |                              Parietal                                 |
+|:------------------------------------------------------------------:|:------------------------------------------------------------------------------:|:----------------------------------------------------------------------:|:---------------------------------------------------------------------:|
 | ![Image: Radiant ripples frontal](doc/radiant-ripples-frontal.png) | ![Image: Radiant ripples left temporal](doc/radiant-ripples-left-temporal.png) | ![Image: Radiant ripples occipetal](doc/radiant-ripples-occipetal.png) | ![Image: Radiant ripples parietal](doc/radiant-ripples-parietal.png)  |
 
 This display uses hardware acceleration (OpenGL).
