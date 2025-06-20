@@ -6,12 +6,12 @@ and displays EEG at realtime. The project has just started, implementation is no
 mature yet and the content is mainly experimental. 
 
 <video style="display: block; position: relative; float: left; margin: 2em;" width="240" controls>
-  <source src="doc/dancing-dots.mp4" type="video/mp4">
+  <source src="doc/dancing-dots.mp4" type="video/mp4"/>
   Dancing Dots Video
 </video>
 
 <video style="display: block; position: relative; float: left; margin: 2em;" width="240" controls>
-  <source src="doc/radiant-ripples.mp4" type="video/mp4">
+  <source src="doc/radiant-ripples.mp4" type="video/mp4"/>
   Radiant Ripples Video
 </video>
 
