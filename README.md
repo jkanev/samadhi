@@ -5,6 +5,16 @@ for visualising EEG and spectrum data in novel ways. Hooking onto an LSL stream,
 and displays EEG at realtime. The project has just started, implementation is not
 mature yet and the content is mainly experimental. 
 
+<video style="display: block; position: relative; float: left; margin: 2em;" width="240" controls>
+  <source src="dancing-dots.mp4" type="video/mp4"/>
+  Dancing Dots Video
+</video>
+
+<video style="display: block; position: relative; float: left; margin: 2em;" width="240" controls>
+  <source src="radiant-ripples.mp4" type="video/mp4"/>
+  Radiant Ripples Video
+</video>
+
 ### Display: Dancing Dots
 
 **A wavy, rotating, jelly-fish like flower made up of single dots.** This is a spectrum display, visualising the current value of the EEG frequency bands Delta, Theta, Alpha, Beta and Gamma.
@@ -24,7 +34,7 @@ the window, a mouse click brings it to full-screen
 
 **A topological 2D-display showing activities like ripples on a pond.** When displaying time series data from spacial sources, there's a trade-off between showing a map but only the current moment (like in voltage mappings), or showing the history but not the spacial layout (like in a curve display). *Radiant Ripples* is a topological display, visualising relative variance per channel by constantly expanding ripples of different frequency.
 ![Image: Radiant Ripples Tab](doc/main-window-radiant-ripples.png)
-Ripples are expanding and fading. High-variance channels will produce many ripples, low variance channels few, or none. That way both topology (map layout) and history (two seconds of ripples, configurable) are combined. The ripples are colour-coded with a nautical colour scheme (starboard — green, portside — red, bow — yellow, stern — blue).
+Ripples are expanding and fading. High-variance channels will produce many ripples, low variance channels few, or none. That way both topology (map layout) and history (two seconds of ripples, configurable) are combined. The ripples are colour-coded with a medical/nautical colour scheme (see under Data below).
 
 |                               Frontal                              |                                  Left Temporal                                 |                              Occipetal                                 |                              Parietal                                 |
 |:------------------------------------------------------------------:|:------------------------------------------------------------------------------:|:----------------------------------------------------------------------:|:---------------------------------------------------------------------:|
@@ -34,9 +44,9 @@ Ripple frequency and speed are configurable. A click into the display brings it 
 
 ### Display: Standard EEG and Spectrum
 
-**Standard plots showing EEG and Spectrum.** The data is shown as received via LSL. In the top middle there's ae a standard EEG voltage curve view and to its left the relative variance over two seconds. On the right there's a plot of the relative PSD. Bottom right has a bar diagram with the current frequency bands, and on the bottom the frequency band history.
+**Standard plots showing EEG and Spectrum.** The data is shown as received via LSL. In the top middle there's a standard EEG voltage curve view and to its left the relative variance over two seconds. On the right there's a plot of the relative PSD. Bottom right has a bar diagram with the current frequency bands, and on the bottom the frequency band history.
 ![Image: Main page with EEG/PSD Tab](doc/main-window-eeg-psd.png)
-Please see the *Data* section below for details.
+Please see the *Data* section below for details on what data is shown, and for the colour coding of the channels.
 The variance history and the band history are shown with a logarithmic display — the longer ago the data has been, the more compressed it will get.
 
 ### Data
@@ -56,6 +66,14 @@ Data is received from the stream in chunks of 200 ms. The
 * **relative band power** is the mean over all channels, integrated per frequency band (excluding DC), divided by the spectrum band width to prevent wider bands having more influence, then normalised so the sum of all bands is 1.0. In parallel, the provided
 * **relative variance** is the variance over the last two seconds of EEG data, divided by the mean variance over all channels (such that the expected variance per channel is 1.0).
 
+#### Colour Coding
+
+In the Standard EEG/PSD view, and the Radiant Ripples view, channels are colour coded according to their location. A channel's colour is a linear interpolation of the four colours red, yellow, green, and blue, where
+* right-temporal (starboard) is green,
+* left-temporal (portside) is red,
+* frontal (bow) is yellow, and 
+* occipital (stern) is blue.
+ 
 ### Installing and Running
 
 #### Python Package
@@ -65,7 +83,6 @@ The software is a python package on PyPi. To install and run, do:
 `python3 -m samadhi`
 To uninstall:
 `pip uninstall samadhi`
-(Non-Python installers for Linux and Windows will follow)
 
 #### Python Source
 
