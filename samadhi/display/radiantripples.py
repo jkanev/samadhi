@@ -230,6 +230,9 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
                 self._counters[n] = 1.0
 
     def resizeGL(self, width, height):
+        ratio = self.devicePixelRatioF()
+        width = int(width * ratio)
+        height = int(height * ratio)
         size = min(width, height)
         x = (width - size) // 2
         y = (height - size) // 2

@@ -312,6 +312,9 @@ class OpenGLDancingDots(QtOpenGLWidgets.QOpenGLWidget):
             print(f"glDrawArrays error: {error}")
 
     def resizeGL(self, width, height):
+        ratio = self.devicePixelRatioF()
+        width = int(width * ratio)
+        height = int(height * ratio)
         size = min(width, height)
         x = (width - size) // 2
         y = (height - size) // 2
