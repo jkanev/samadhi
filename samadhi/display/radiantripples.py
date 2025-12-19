@@ -18,6 +18,7 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
     _blue = False
     _timer = False
     _shader_program_id = 0
+    _ripple_texture_id = 0
     _vertex_buffer = None  # VBO
     _vertex_array = None  # VAO
     _counter = 0.0
@@ -130,14 +131,15 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
                        " in vec2 pointCenter; \n"
                        " uniform float iResolution; \n"
                        " uniform vec2 iWindowCorner; "
+                       " uniform sampler1D rippleProfile; "
                        " out vec4 fragColour; \n"
                        " void main() { \n"
                        "     vec2 uv = 2.0*(gl_FragCoord.xy-iWindowCorner)/iResolution - 1.0 - pointCenter.xy; \n"
                        "     float s = colourSize[3]; \n"
-                       "     float w = 100.0 / pow(s,2.0); \n"
+                       "     if (s <= 0.0) discard; \n"
                        "     float r = 2.5*length(uv); \n"
-                       "     float k = pow((s-r), 2.0); \n"
-                       "     float c = pow(2.0, -k*w); \n"
+                       "     float x = r / s; \n"
+                       "     float c = texture(rippleProfile, x / 2.0).r; \n"
                        "     fragColour = vec4(c * colourSize[0], \n"
                        "                       c * colourSize[1], \n"
                        "                       c * colourSize[2], c/pow(2.0, 5.0*s)); \n"
@@ -157,6 +159,20 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
             print(f"Error linking radiant ripples shaders: {gl.glGetProgramInfoLog(self._shader_program_id)}.")
         if not gl.glIsProgram(self._shader_program_id):
             print(f"Error: Shader program {self._shader_program_id} is not valid!")
+
+        # create a 1D texture for the ripple profile
+        # c = 2.0^(-100.0 * (1-x)^2) where x = r/s
+        # we map x from 0.0 to 2.0 (to cover a bit more than just the peak)
+        num_points = 1024
+        x = np.linspace(0.0, 2.0, num_points, dtype=np.float32)
+        profile = 2.0**(-100.0 * (1.0 - x)**2)
+        
+        self._ripple_texture_id = gl.glGenTextures(1)
+        gl.glBindTexture(gl.GL_TEXTURE_1D, self._ripple_texture_id)
+        gl.glTexImage1D(gl.GL_TEXTURE_1D, 0, gl.GL_R32F, num_points, 0, gl.GL_RED, gl.GL_FLOAT, profile)
+        gl.glTexParameteri(gl.GL_TEXTURE_1D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+        gl.glTexParameteri(gl.GL_TEXTURE_1D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+        gl.glTexParameteri(gl.GL_TEXTURE_1D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
 
         # declare the buffer to be a vertex array
         self._vertices = np.column_stack((self._x_numbers, self._y_numbers, self._radii, self._red, self._green, self._blue)).ravel()
@@ -201,6 +217,7 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
         gl.glUniform1f(loc, min(self._viewport[2], self._viewport[3]))
         loc = gl.glGetUniformLocation(self._shader_program_id, "iWindowCorner")
         gl.glUniform2f(loc, self._viewport[0], self._viewport[1])
+        gl.glBindTexture(gl.GL_TEXTURE_1D, self._ripple_texture_id)
         gl.glEnable(gl.GL_BLEND)
         gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
         gl.glDrawArrays(gl.GL_POINTS, 0, len(self._x_numbers))
