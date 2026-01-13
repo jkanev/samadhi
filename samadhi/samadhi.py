@@ -371,6 +371,7 @@ class Mind:
                     self._sampling_rate = 250
                     self._samples = int(self._data_seconds * self._sampling_rate)
                     self._checkbox_connect_lsl.setText("Connected")
+                    self._ch_names = ['A', 'B', 'C', 'D', 'E']
                     # start simulation thread
                     self._streaming = True
                     thstr = threading.Thread(target=self._simulate_eeg)
@@ -479,7 +480,7 @@ class Mind:
             self._eegpsd_layout.addWidget(self._fft_canvas, 0, 2, 1, 1)
             self._fft_axes.set_ylim(bottom=-0.2, top=self._channels + 1.2)
             self._fft_axes.set_yticks(ticks=np.arange(1, self._channels + 2),
-                                      labels=['Total']+self._ch_names[::-1], color=label_c, fontsize=8)
+                                      labels=['Abs.FFT/Time'] + self._ch_names[::-1], color=label_c, fontsize=8)
             self._fft_axes.set_title('rel. PSD', color=title_c, fontsize=10, pad=5)
             self._fft_axes.set_facecolor(outer_c)
             figure.set_facecolor(passepartout_c)
@@ -640,11 +641,13 @@ class Mind:
                         sqr_lines[c].set_ydata(self._sqr_data[c] / sqr_height + float(self._channels - c) - 0.5)
                 with self._fft_lock:
                     self._fft_channel_height = 0.5 * self._fft_data.max()
+                    #print(self._fft_data.max())
                     if not self._fft_channel_height:
                         self._fft_channel_height = 1.0
                     for c in range(0, len(fft_lines)-1):
                         fft_lines[c].set_ydata(self._fft_data[c] / self._fft_channel_height + float(self._channels - c) + 0.5)
                     fft_lines[len(fft_lines)-1].set_ydata(2.0 * self._fft_running_mean / self._fft_running_mean.max() + 0.5)
+                    #print(self._fft_running_mean.max())
                 with self._hst_lock:
                     hst_height = self._hst_data.max()
                     hst_height = hst_height or 1.0
@@ -675,7 +678,7 @@ class Mind:
         print("Starting LSL reading.")
 
         # init data buffers
-        self._eeg_stream.filter(2, 70)
+        self._eeg_stream.filter(2, 60)
         self._eeg_stream.notch_filter(50)
         self._eeg_stream.get_data()  # reset the number of new samples after the filter is applied
         with self._eeg_lock:
@@ -777,10 +780,15 @@ class Mind:
         widths = np.insert(bin_freqs[1:] - bin_freqs[:-1], 0, bin_freqs[0])
         self._fft_resolution = self._fft_freqs[1]
         self._fft_max = bins[-1]
-        self._fft_running_mean = np.ones((1, self._fft_max))
+        self._fft_running_mean = 1e-12 * np.ones((1, self._fft_max))
         self._fft_freqs = self._fft_freqs[:self._fft_max]
         smooth = self._bnd_smoothing
-        mean_delay = 50     # bit of a hack, but the FFT values at the beginning are huge, due to some filter oscillations (probably). Wait 1000 samples before starting.
+
+        # Wait before starting to analyse FFT
+        delay_max = 200.0     # Delay period to get a starting estimate of FFT before the gradual adaption starts
+        delay_ign = 50    # Period where everything is ignored
+        delay = 0.0     # Delay counter
+        factor = 0.999    # factor for smooth average of fft mean
 
         # start streaming loop
         while self._streaming:
@@ -795,14 +803,27 @@ class Mind:
                         eeg_max = self._eeg_data.max()
                         self._fft_data = np.fft.rfft(self._eeg_data, axis=1)
                     self._fft_data = (np.abs(self._fft_data)**2)[:,:self._fft_max]
-                    if mean_delay:
-                        mean_delay -= 1
-                        print(mean_delay)
+
+                    # Build up starting estimate of mean fft, using the first 50 values after start.
+                    # Use very little information at the beginning of the interval (values are bad, as filters
+                    # are still kicking into action), and a lot from the end part of the interval.
+                    # After the initial delay period is over, use standard slowly adapting mean
+                    if delay > delay_max:
+                        f = 0.999
+                    elif delay > delay_ign:
+                        f = factor * (delay - delay_ign) / (delay_max - delay_ign)     # runs from 0.0 to "factor"
+                        print(f'mean_delay: {delay}, factor: {f}')
+                        delay += 1.0
                     else:
-                        self._fft_running_mean *= 0.999
-                        self._fft_running_mean += 0.001 * self._fft_data.sum(axis=0) / self._channels
+                        delay += 1.0
+                        continue
+                    self._fft_running_mean = f * self._fft_running_mean + (1 - f) * self._fft_data.sum(axis=0)
+
+                    # normalise by running mean
                     self._fft_data /= self._fft_running_mean
                     fft_all_channels = self._fft_data.sum(axis=0)[1:] / self._channels     # sum of fft over all channels, excluding DC
+
+                    # calculate bands and write into data
                     c = self._fft_resolution     # normalise each band by its width, as if it were 1.0 wide
                     bnd_data = np.array([a[0].sum() * c / a[1] for a in
                                          zip(np.split(fft_all_channels, bins)[:5], widths)])
@@ -812,6 +833,8 @@ class Mind:
                         with self._hst_lock:
                             self._hst_data[:, :-1] = self._hst_data[:, 1:]
                             self._hst_data[:, -1] = self._bnd_data
+
+                    # write label info for gui
                     self._bnd_info = "Freq δ {:0.1f} | θ {:0.1f} | α {:0.1f} | β {:0.1f} | γ {:0.1f}".format(*self._bnd_data)
                     #self._eeg_info = "{:.1f} µV - {:.1f} µV".format(eeg_min * 1e6, eeg_max * 1e6)
                     self._eeg_info = "{:.1f} µV - {:.1f} µV".format(eeg_min, eeg_max)
