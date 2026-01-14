@@ -43,7 +43,7 @@ class Mind:
     _channels = 0        # number of channels in the data
     _2d_layout = []      # x,y coordinates of channels, will be written after connecting to the stream
     _ch_names = []       # channel names
-    _history_length = 600.0   # length of history buffer in seconds
+    _history_length = 60.0   # length of history buffer in seconds
     _eeg_data = []       # pointer to the buffer that has just been filled, either data_a or data_b
     _eeg_lock = threading.Lock()    # lock for eeg data
     _eeg_times = []      # buffer containing eeg time stamps
@@ -591,44 +591,58 @@ class Mind:
                 or not len(self._hst_data):
             time.sleep(0.2)
 
-        # eeg + fft
-        eeg_lines = self._eeg_axes.plot(np.vstack([self._eeg_data, np.zeros(self._samples)]).T)  # the last channel in the simulator has the alpha intensity
-        self._eeg_axes.set_xlim(0, self._eeg_data.shape[1])
-        sqr_lines = self._sqr_axes.plot(np.arange(float(-self._sqr_data.shape[1]), 0.0),
-                                        np.vstack([self._sqr_data, np.zeros(self._sqr_data.shape[1])]).T)
-        self._sqr_axes.set_xlim(-float(self._sqr_data.shape[1]), -2.0)
-        fft_lines = self._fft_axes.plot(self._fft_freqs, np.vstack([self._fft_data, np.zeros(self._fft_max)]).T)
-        self._fft_axes.set_xlim(self._fft_freqs[0], self._fft_freqs[-1])
-        bnd_bars = self._bnd_axes.bar([1, 2, 3, 4, 5], self._bnd_data)
-        hst_lines = self._hst_axes.plot(np.arange(float(-self._hst_data.shape[1]), 0.0), self._hst_data.T)
-        self._hst_axes.set_xlim(-self._hst_data.shape[1], -2.0)
-
+        # build vector with location colours for eeg and fft
         background = self._parent_tabwidget.parent().parent().palette().base().color()
         brightness = sum(background.getRgb()[:3]) / (3 * 255.0)
-
-        # set rainbow colours for eeg and fft
-        for c in range(0, len(eeg_lines)-1):
+        chn_band_colours = []
+        chn_line_colours = []
+        for c in range(0, self._channels):
+            bright = (self._2d_layout[c][2], self._2d_layout[c][3], self._2d_layout[c][4])
+            dark = (0.5*self._2d_layout[c][2], 0.5*self._2d_layout[c][3], 0.5*self._2d_layout[c][4])
             if brightness < 0.5:
-                colour = (self._2d_layout[c][2], self._2d_layout[c][3], self._2d_layout[c][4])
+                chn_line_colours.append(bright)
+                chn_band_colours.append(dark)
             else:
-                colour = (0.5*self._2d_layout[c][2], 0.5*self._2d_layout[c][3], 0.5*self._2d_layout[c][4])
-            eeg_lines[c].set_color(color=colour)
-            eeg_lines[c].set_linewidth(0.4)
-            fft_lines[c].set_color(color=colour)
-            fft_lines[c].set_linewidth(0.4)
-            sqr_lines[c].set_color(color=colour)
-            sqr_lines[c].set_linewidth(0.4)
-
-        # set rainbow colours for frequency bands
+                chn_line_colours.append(dark)
+                chn_band_colours.append(bright)
+        # build vector with rainbow colours for frequency bands
+        freq_band_colours = []
+        freq_line_colours = []
         for n in range(0, 5):
             a = n/4.0
+            bright = (0.3+0.7*(1 - a), 0.5+0.5*(1.0 - 2.0*abs(a - 0.5)), 0.3+0.7*a)
+            dark = (0.7 - 0.7*(1 - a), 0.5 - 0.5*(1.0 - 2.0*abs(a - 0.5)), 0.7 - 0.7*a)
             if brightness < 0.5:
-                colour = (0.3+0.7*(1 - a), 0.5+0.5*(1.0 - 2.0*abs(a - 0.5)), 0.3+0.7*a)
+                freq_line_colours.append(bright)
+                freq_band_colours.append(dark)
             else:
-                colour = (0.7 - 0.7 * (1 - a), 0.5 - 0.5 * (1.0 - 2.0 * abs(a - 0.5)), 0.7 - 0.7 * a)
-            bnd_bars[n].set(color=colour)
-            hst_lines[n].set_color(color=colour)
-            hst_lines[n].set_linewidth(0.5)
+                freq_line_colours.append(dark)
+                freq_band_colours.append(bright)
+
+        # plot eeg + fft
+        eeg_lines = self._eeg_axes.plot(np.vstack([self._eeg_data, np.zeros(self._samples)]).T)  # the last channel in the simulator has the alpha intensity
+        self._eeg_axes.set_xlim(0, self._eeg_data.shape[1])
+        sqr_lines = self._sqr_axes.stackplot(np.arange(float(-self._sqr_data.shape[1]), 0.0),
+                                             self._sqr_data,
+                                             colors=chn_band_colours)
+        self._sqr_axes.set_xlim(-float(self._sqr_data.shape[1]), -2.0)
+        fft_lines = self._fft_axes.plot(self._fft_freqs,
+                                        np.vstack([self._fft_data, np.zeros(self._fft_max)]).T)
+        self._fft_axes.set_xlim(self._fft_freqs[0], self._fft_freqs[-1])
+        bnd_bars = self._bnd_axes.bar([1, 2, 3, 4, 5], self._bnd_data, color=freq_band_colours)
+        hst_lines = self._hst_axes.stackplot(np.arange(float(-self._hst_data.shape[1]), 0.0),
+                                             self._hst_data,
+                                             colors=freq_band_colours)
+        self._hst_axes.set_xlim(-self._hst_data.shape[1], -2.0)
+        hist_zeros = np.zeros(int(self._history_length * 5.0))
+        sqr_zeros = np.zeros(int(self._sqr_data.shape[1]))
+
+        # assign line colours
+        for c in range(0, len(eeg_lines)-1):
+            eeg_lines[c].set_color(color=chn_line_colours[c])
+            eeg_lines[c].set_linewidth(0.4)
+            fft_lines[c].set_color(color=chn_line_colours[c])
+            fft_lines[c].set_linewidth(0.4)
 
         while self._streaming and self._showing_eegpsd:
             try:
@@ -640,10 +654,20 @@ class Mind:
                     eeg_lines[len(eeg_lines) - 1].set_ydata(self._eeg_data.mean(axis=0)/self._eeg_channel_height + 0.5)
                 self._eeg_channel_height = 0.5*(eeg_max - eeg_min)
                 with self._sqr_lock:
-                    sqr_height = self._sqr_data.max() or 1.0
-                    for c in range(0, len(sqr_lines)-1):
-                        sqr_lines[c].set_ydata(self._sqr_data[c] / sqr_height + float(self._channels - c))
-                    sqr_lines[len(sqr_lines) - 1].set_ydata(self._sqr_data.mean(axis=0) / sqr_height)
+                    #for c in range(0, len(sqr_lines)-1):
+                    #    sqr_lines[c].set_ydata(self._sqr_data[c] / sqr_height + float(self._channels - c))
+                    #sqr_lines[len(sqr_lines) - 1].set_ydata(self._sqr_data.mean(axis=0) / sqr_height)
+                    # for b in range(0, len(hst_lines)):
+                    #    hst_lines[b].set_ydata(self._hst_data[b] / hst_height + float(b))
+                    xvert = np.arange(float(-self._sqr_data.shape[1]), 0.0)
+                    ytop = sqr_zeros
+                    for p, poly in enumerate(sqr_lines):
+                        ybottom = ytop
+                        ytop = self._sqr_data[p]
+                        top = np.concatenate([xvert, xvert[::-1]])
+                        bottom = np.concatenate([ytop, ybottom[::-1]])
+                        verts = np.column_stack([top, bottom])
+                        poly.set_verts([verts])
                 with self._fft_lock:
                     self._fft_channel_height = 0.5 * self._fft_data.max()
                     if not self._fft_channel_height:
@@ -653,13 +677,18 @@ class Mind:
                     single_line_avg = self._fft_running_mean.mean(axis=0)
                     fft_lines[len(fft_lines)-1].set_ydata(2.0 * ( 2.0 * single_line_avg / single_line_avg.max()))
                 with self._hst_lock:
-                    hst_height = self._hst_data.max()
-                    hst_height = hst_height or 1.0
-                    for b in range(0, len(hst_lines)):
-                        hst_lines[b].set_ydata(self._hst_data[b] / hst_height + float(b))
+                    xvert = np.arange(float(-self._hst_data.shape[1]), 0.0)
+                    ytop = hist_zeros
+                    for p, poly in enumerate(hst_lines):
+                        ybottom = ytop
+                        ytop = self._hst_data[p]
+                        top = np.concatenate([xvert, xvert[::-1]])
+                        bottom = np.concatenate([ytop, ybottom[::-1]])
+                        verts = np.column_stack([top, bottom])
+                        poly.set_verts([verts])
                 with self._bnd_lock:
                     for b in range(0, len(bnd_bars)):
-                        bnd_bars[b].set_height(self._bnd_data[b] / hst_height)
+                        bnd_bars[b].set_height(self._bnd_data[b])
                 self._eeg_canvas.draw()
                 self._sqr_canvas.draw()
                 self._fft_canvas.draw()
@@ -688,7 +717,7 @@ class Mind:
         with self._eeg_lock:
             self._eeg_data = np.zeros((self._channels, self._samples))
         with self._sqr_lock:
-            self._sqr_data = np.zeros((self._channels, int(self._history_length * 5.0)))  # history length * update rate of the analysis thread
+            self._sqr_data = np.ones((self._channels+1, int(self._history_length * 5.0)))  # history length * update rate of the analysis thread
         with self._fft_lock:
             self._fft_data = np.zeros((self._channels, int(self._samples/2)))
         with self._bnd_lock:
@@ -703,10 +732,10 @@ class Mind:
                 self._eeg_data, ts = self._eeg_stream.get_data()
 
                 # Check for change in sampling frequency. Some amplifiers stream differently than they announce.
-                rate = self._samples / (ts[-1] - ts[0])
-                if rate > 1.0 and rate < 0.95*self._sampling_rate or rate > 1.05*self._sampling_rate:
-                    print(f"Warning: LSL sampling rate is {rate} Hz, expected {self._sampling_rate} Hz, adjusting.")
-                    self._init_fft_freqs(rate)
+                #rate = self._samples / (ts[-1] - ts[0])
+                #if rate > 1.0 and rate < 0.95*self._sampling_rate or rate > 1.05*self._sampling_rate:
+                #    print(f"Warning: LSL sampling rate is {rate} Hz, expected {self._sampling_rate} Hz, adjusting.")
+                #    self._init_fft_freqs(rate)
 
             with self._gui_lock:
                 self._lsl_info = "LSL Time {:0.1f}".format(ts[-1])
@@ -728,7 +757,7 @@ class Mind:
         with self._eeg_lock:
             self._eeg_data = np.zeros((self._channels, self._samples))
         with self._sqr_lock:
-            self._sqr_data = np.zeros((self._channels, self._samples))
+            self._sqr_data = np.ones((self._channels+1, self._samples))
         with self._fft_lock:
             self._fft_data = np.zeros((self._channels, int(self._samples / 2)))
         with self._bnd_lock:
@@ -819,7 +848,8 @@ class Mind:
                     with self._sqr_lock:
                         self._sqr_data = np.roll(self._sqr_data, -1, axis=1)
                         var = self._eeg_data.var(1)
-                        self._sqr_data[:,-1] = (var / (var.sum() or 1.0) ) * self._channels    # ensure each channel goes from 0.0 to 1.0
+                        var -= var.min()
+                        self._sqr_data[1:,-1] = np.cumsum(((var - var.min()) / (var.sum() or 1.0) ) * self._channels)   # ensure each channel goes from 0.0 to 1.0
                     with self._fft_lock:
                         eeg_min = self._eeg_data.min()
                         eeg_max = self._eeg_data.max()
@@ -851,29 +881,32 @@ class Mind:
                     self._fft_data /= self._fft_running_mean
 
                     # calculate bands and write into data
-                    c = self._fft_resolution     # normalise each band by its width, as if it were 1.0 wide
-                    self._bnd_channel_data = np.array([
-                                                    a.mean(axis=1) for a in    # mean per band / width
-                                                    np.split(
-                                                        self._fft_data,        # fft channel/sample
-                                                        self._bins,            # indexes per pin
-                                                        axis=1                 # split into bins/channels
-                                                    )[:5]                      # why on earth did we define six bins??
-                                                ]).T                           # array[channel, band value]
-
-                    # augment the fft band results per channel; first square, the subtract min then divide by max
-                    x = self._bnd_channel_data
-                    np.square(x, out=x)
-                    mins = x.min(axis=1, keepdims=True)
-                    maxs = x.max(axis=1, keepdims=True)
-                    np.divide(x - mins, np.maximum(maxs - mins, 1e-12), out=x)
-                    bnd_data = self._bnd_channel_data.sum(axis=0)
-                    bnd_data = bnd_data / (bnd_data.sum() or 1.0)   # relative power
                     with self._bnd_lock:
+
+                        # create bands per channel and write into self
+                        self._bnd_channel_data = np.array([
+                                                        a.mean(axis=1) for a in    # mean per band / width
+                                                        np.split(
+                                                            self._fft_data,        # fft channel/sample
+                                                            self._bins,            # indexes per pin
+                                                            axis=1                 # split into bins/channels
+                                                        )[:5]                      # why on earth did we define six bins??
+                                                    ]).T                           # array[channel, band value]
+
+                        # augment the fft band results per channel; first square, the subtract min then divide by max
+                        x = self._bnd_channel_data
+                        np.square(x, out=x)
+                        mins = x.min(axis=1, keepdims=True)
+                        maxs = x.max(axis=1, keepdims=True)
+                        np.divide(x - mins, np.maximum(maxs - mins, 1e-12), out=x)
+
+                        # sum up to band totals and write int band data and history
+                        bnd_data = self._bnd_channel_data.sum(axis=0)
+                        bnd_data = 5.0*bnd_data / (bnd_data.sum() or 1.0)   # relative power
                         self._bnd_data = bnd_data
                         with self._hst_lock:
-                            self._hst_data[:, :-1] = self._hst_data[:, 1:]
-                            self._hst_data[:, -1] = self._bnd_data
+                            self._hst_data[:,:-1] = self._hst_data[:,1:]
+                            self._hst_data[:,-1] = np.cumsum(self._bnd_data)
 
                     # write label info for gui
                     self._bnd_info = "Freq δ {:0.1f} | θ {:0.1f} | α {:0.1f} | β {:0.1f} | γ {:0.1f}".format(*self._bnd_data)
