@@ -2,6 +2,8 @@
 #!/usr/bin/python3
 from PyQt6.QtWidgets import QPushButton
 from PyQt6 import QtWidgets, QtGui, QtCore
+from charset_normalizer.md import is_arabic_isolated_form
+
 from .dancingdots import OpenGLDancingDots
 from .radiantripples import OpenGLRadiantRipples
 import time
@@ -268,13 +270,22 @@ class RadiantRipplesLayout(QtWidgets.QGridLayout):
                                     1, 0, 1, 1)
 
 
+        # colour coding
+        box_colour = QtWidgets.QComboBox()
+        box_colour.addItem('Channel Location', 'l')
+        box_colour.addItem('Total Power', 'v')
+        box_colour.currentIndexChanged.connect(self.update_rripples_display)
+        settingslayout.addWidget(box_colour, 2, 0, 1, 1)
+        settingslayout.addWidget(QtWidgets.QLabel("Colour Coding"), 2, 1, 1, 1)
+        self._settings['colour'] = box_colour
+
         # wave speed
         spin_wavespeed = QtWidgets.QDoubleSpinBox()
         spin_wavespeed.setRange(0.0, 20.0)
         spin_wavespeed.setSingleStep(0.5)
         spin_wavespeed.valueChanged.connect(self.update_rripples_display)
-        settingslayout.addWidget(spin_wavespeed, 2, 0, 1, 1)
-        settingslayout.addWidget(QtWidgets.QLabel("Wave Speed"), 2, 1, 1, 1)
+        settingslayout.addWidget(spin_wavespeed, 3, 0, 1, 1)
+        settingslayout.addWidget(QtWidgets.QLabel("Wave Speed"), 3, 1, 1, 1)
         self._settings['wavespeed'] = spin_wavespeed
 
         # wave frequency
@@ -282,13 +293,13 @@ class RadiantRipplesLayout(QtWidgets.QGridLayout):
         spin_wavefrequency.setRange(0.0, 20.0)
         spin_wavefrequency.setSingleStep(0.5)
         spin_wavefrequency.valueChanged.connect(self.update_rripples_display)
-        settingslayout.addWidget(spin_wavefrequency, 2, 2, 1, 1)
-        settingslayout.addWidget(QtWidgets.QLabel("Wave Frequency"), 2, 3, 1, 1)
+        settingslayout.addWidget(spin_wavefrequency, 3, 2, 1, 1)
+        settingslayout.addWidget(QtWidgets.QLabel("Wave Frequency"), 3, 3, 1, 1)
         self._settings['wavefrequency'] = spin_wavefrequency
 
         # add default settings
         settings = {
-            'wavespeed': 10.0, 'wavefrequency': 10.0,
+            'wavespeed': 10.0, 'wavefrequency': 10.0, 'colour': 'l'
         }
         self.set_settings(settings)
 
@@ -334,7 +345,10 @@ class RadiantRipplesLayout(QtWidgets.QGridLayout):
         """
         settings = {}
         for name, widget in self._settings.items():
-            settings[name] = widget.value()
+            if isinstance(widget, QtWidgets.QComboBox):
+                settings[name] = widget.currentData()
+            else:
+                settings[name] = widget.value()
         return settings
 
     def set_settings(self, settings):
@@ -342,7 +356,10 @@ class RadiantRipplesLayout(QtWidgets.QGridLayout):
         :param settings: A dictionary with values to set
         """
         for name, value in settings.items():
-            self._settings[name].setValue(value)
+            if isinstance(self._settings[name], QtWidgets.QComboBox):
+                self._settings[name].setCurrentText(value)
+            else:
+                self._settings[name].setValue(value)
 
     def update_rripples_display(self):
         """ Set parameters in rripples display

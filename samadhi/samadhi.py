@@ -151,6 +151,7 @@ class Mind:
         self._sampling_rate = 0  # sampling rate of eeg data
         self._samples = 0
         self._fft_resolution = 0
+        self._fft_bins = ([],[])     # tuple, first bins per pand, then widths per band
         self._channels = 1
         self._history_length = 600.0
         self._eeg_data = []
@@ -448,7 +449,8 @@ class Mind:
             plt.subplots_adjust(top=0.95, bottom=0.05, left=0.1, right=1.0)
             self._sqr_axes.set_xscale('symlog')
             self._sqr_axes.set_xticks([])
-            self._sqr_axes.set_yticks(ticks=np.arange(1, self._channels + 1), labels=self._ch_names[::-1], color=label_c, fontsize=8)
+            self._sqr_axes.set_yticks(ticks=np.arange(0.5, self._channels + 1.5),
+                                      labels=['Total'] + self._ch_names[::-1], color=label_c, fontsize=8)
             self._sqr_axes.set_title('{} — rel. {:0.1f}-Seconds-Variance over {} minutes'.format(self._name,
                                                                                              self._data_seconds,
                                                                              self._history_length/60.0),
@@ -479,8 +481,8 @@ class Mind:
             plt.subplots_adjust(top=0.95, bottom=0.05, left=0.15, right=0.99)
             self._eegpsd_layout.addWidget(self._fft_canvas, 0, 2, 1, 1)
             self._fft_axes.set_ylim(bottom=-0.2, top=self._channels + 1.2)
-            self._fft_axes.set_yticks(ticks=np.arange(1, self._channels + 2),
-                                      labels=['Abs.FFT/Time'] + self._ch_names[::-1], color=label_c, fontsize=8)
+            self._fft_axes.set_yticks(ticks=np.arange(0.5, self._channels + 1.5),
+                                      labels=['E(Abs)'] + self._ch_names[::-1], color=label_c, fontsize=8)
             self._fft_axes.set_title('rel. PSD', color=title_c, fontsize=10, pad=5)
             self._fft_axes.set_facecolor(outer_c)
             figure.set_facecolor(passepartout_c)
@@ -589,11 +591,11 @@ class Mind:
             time.sleep(0.2)
 
         # eeg + fft
-        eeg_lines = self._eeg_axes.plot(self._eeg_data.T)  # the last channel in the simulator has the alpha intensity
+        eeg_lines = self._eeg_axes.plot(np.vstack([self._eeg_data, np.zeros(self._samples)]).T)  # the last channel in the simulator has the alpha intensity
         self._eeg_axes.set_xlim(0, self._eeg_data.shape[1])
-        sqr_lines = self._sqr_axes.plot(np.arange(float(-self._sqr_data.shape[1]), 0.0), self._sqr_data.T)
+        sqr_lines = self._sqr_axes.plot(np.arange(float(-self._sqr_data.shape[1]), 0.0),
+                                        np.vstack([self._sqr_data, np.zeros(self._sqr_data.shape[1])]).T)
         self._sqr_axes.set_xlim(-float(self._sqr_data.shape[1]), -2.0)
-        # fft_lines = self._fft_axes.plot(self._fft_freqs, self._fft_data.T)
         fft_lines = self._fft_axes.plot(self._fft_freqs, np.vstack([self._fft_data, self._fft_running_mean]).T)
         self._fft_axes.set_xlim(self._fft_freqs[0], self._fft_freqs[-1])
         bnd_bars = self._bnd_axes.bar([1, 2, 3, 4, 5], self._bnd_data)
@@ -604,7 +606,7 @@ class Mind:
         brightness = sum(background.getRgb()[:3]) / (3 * 255.0)
 
         # set rainbow colours for eeg and fft
-        for c in range(0, len(eeg_lines)):
+        for c in range(0, len(eeg_lines)-1):
             if brightness < 0.5:
                 colour = (self._2d_layout[c][2], self._2d_layout[c][3], self._2d_layout[c][4])
             else:
@@ -632,21 +634,23 @@ class Mind:
                 with self._eeg_lock:
                     eeg_max = self._eeg_data.max()
                     eeg_min = self._eeg_data.min()
-                    for c in range(0, len(eeg_lines)):
-                        eeg_lines[c].set_ydata(self._eeg_data[c]/self._eeg_channel_height + float(self._channels - c))
+                    for c in range(0, len(eeg_lines)-1):
+                        eeg_lines[c].set_ydata(self._eeg_data[c]/self._eeg_channel_height + float(self._channels - c) + 0.5)
+                    eeg_lines[len(eeg_lines) - 1].set_ydata(self._eeg_data.mean(axis=0)/self._eeg_channel_height + 0.5)
                 self._eeg_channel_height = 0.5*(eeg_max - eeg_min)
                 with self._sqr_lock:
                     sqr_height = self._sqr_data.max() or 1.0
-                    for c in range(0, len(sqr_lines)):
-                        sqr_lines[c].set_ydata(self._sqr_data[c] / sqr_height + float(self._channels - c) - 0.5)
+                    for c in range(0, len(sqr_lines)-1):
+                        sqr_lines[c].set_ydata(self._sqr_data[c] / sqr_height + float(self._channels - c))
+                    sqr_lines[len(sqr_lines) - 1].set_ydata(self._sqr_data.mean(axis=0) / sqr_height)
                 with self._fft_lock:
                     self._fft_channel_height = 0.5 * self._fft_data.max()
                     #print(self._fft_data.max())
                     if not self._fft_channel_height:
                         self._fft_channel_height = 1.0
                     for c in range(0, len(fft_lines)-1):
-                        fft_lines[c].set_ydata(self._fft_data[c] / self._fft_channel_height + float(self._channels - c) + 0.5)
-                    fft_lines[len(fft_lines)-1].set_ydata(2.0 * self._fft_running_mean / self._fft_running_mean.max() + 0.5)
+                        fft_lines[c].set_ydata(self._fft_data[c] / self._fft_channel_height + float(self._channels - c))
+                    fft_lines[len(fft_lines)-1].set_ydata(2.0 * self._fft_running_mean / self._fft_running_mean.max())
                     #print(self._fft_running_mean.max())
                 with self._hst_lock:
                     hst_height = self._hst_data.max()
@@ -697,6 +701,13 @@ class Mind:
         while self._streaming:
             with self._eeg_lock:
                 self._eeg_data, ts = self._eeg_stream.get_data()
+
+                # Check for change in sampling frequency. Some amplifiers stream differently than they announce.
+                rate = self._samples / (ts[-1] - ts[0])
+                if rate > 1.0 and rate < 0.95*self._sampling_rate or rate > 1.05*self._sampling_rate:
+                    print(f"Warning: LSL sampling rate is {rate} Hz, expected {self._sampling_rate} Hz, adjusting.")
+                    self._init_fft_freqs(rate)
+
             with self._gui_lock:
                 self._lsl_info = "LSL Time {:0.1f}".format(ts[-1])
             #time.sleep(0.1)
@@ -758,6 +769,24 @@ class Mind:
         # done.
         print("Ending LSL reading.")
 
+    def _init_fft_freqs(self, rate=0.0):
+        """
+        Function to initialise the FFT frequency vector. This is an extra function because possibly the data
+        time resolution from the FFT stream turns out to be different than what the FFT stream advertises.
+        :return: bins: a vector with bin numbers for summing up bands, and with withs for scaling bands
+        """
+        with self._fft_lock:
+            self._sampling_rate = rate or self._sampling_rate
+            self._fft_freqs = np.fft.rfftfreq(self._samples, d=1.0 / self._sampling_rate)
+            bin_freqs = np.array([3.5, 7.5, 12.5, 30.5, 50.0, 60.0])  # delta, theta, alpha, beta, gamma, total
+            bins = [abs(self._fft_freqs - f).argmin() for f in bin_freqs]
+            widths = np.insert(bin_freqs[1:] - bin_freqs[:-1], 0, bin_freqs[0])
+            self._fft_resolution = self._fft_freqs[1]
+            self._fft_max = bins[-1]
+            self._fft_freqs = self._fft_freqs[:self._fft_max]
+            self._bins = (bins, widths)
+        return True
+
     def _analyse_psd(self):
         """
         Read data into buffer a, then call a new thread
@@ -774,21 +803,14 @@ class Mind:
         self._bnd_label.setEnabled(True)
 
         # initialise data objects
-        self._fft_freqs = np.fft.rfftfreq(self._samples, d=1.0 / self._sampling_rate)
-        bin_freqs = np.array([3.5, 7.5, 12.5, 30.5, 50.0, 60.0])   # delta, theta, alpha, beta, gamma, total
-        bins = [abs(self._fft_freqs - f).argmin() for f in bin_freqs]
-        widths = np.insert(bin_freqs[1:] - bin_freqs[:-1], 0, bin_freqs[0])
-        self._fft_resolution = self._fft_freqs[1]
-        self._fft_max = bins[-1]
-        self._fft_running_mean = 1e-12 * np.ones((1, self._fft_max))
-        self._fft_freqs = self._fft_freqs[:self._fft_max]
         smooth = self._bnd_smoothing
-
+        self._init_fft_freqs()
         # Wait before starting to analyse FFT
         delay_max = 200.0     # Delay period to get a starting estimate of FFT before the gradual adaption starts
         delay_ign = 50    # Period where everything is ignored
         delay = 0.0     # Delay counter
         factor = 0.999    # factor for smooth average of fft mean
+        self._fft_running_mean = 1e-12 * np.ones((1, self._fft_max))
 
         # start streaming loop
         while self._streaming:
@@ -812,12 +834,18 @@ class Mind:
                         f = 0.999
                     elif delay > delay_ign:
                         f = factor * (delay - delay_ign) / (delay_max - delay_ign)     # runs from 0.0 to "factor"
-                        print(f'mean_delay: {delay}, factor: {f}')
                         delay += 1.0
                     else:
                         delay += 1.0
                         continue
-                    self._fft_running_mean = f * self._fft_running_mean + (1 - f) * self._fft_data.sum(axis=0)
+
+                    # if the sampling frequency changes, init again
+                    try:
+                        self._fft_running_mean = f * self._fft_running_mean + (1 - f) * self._fft_data.mean(axis=0)
+                    except ValueError:
+                        self._fft_running_mean = 1e-12 * np.ones((1, self._fft_max))
+                        delay = 0
+                        continue
 
                     # normalise by running mean
                     self._fft_data /= self._fft_running_mean
@@ -826,7 +854,7 @@ class Mind:
                     # calculate bands and write into data
                     c = self._fft_resolution     # normalise each band by its width, as if it were 1.0 wide
                     bnd_data = np.array([a[0].sum() * c / a[1] for a in
-                                         zip(np.split(fft_all_channels, bins)[:5], widths)])
+                                         zip(np.split(fft_all_channels, self._bins[0])[:5], self._bins[1])])
                     bnd_data = bnd_data / (bnd_data.sum() or 1.0)   # relative power
                     with self._bnd_lock:
                         self._bnd_data = smooth*self._bnd_data + (1.0-smooth)*bnd_data

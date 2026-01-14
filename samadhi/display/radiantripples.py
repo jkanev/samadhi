@@ -10,6 +10,8 @@ import numpy as np
 class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
 
     _get_data = False
+    _number_of_rings = 100
+    _colour = 'v'
     _x_numbers = False
     _y_numbers = False
     _vertices = False
@@ -53,12 +55,12 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
         self._counters = np.random.rand(len(self._x_positions))     # counters for starting new circles
 
         # the queue with circles for the screen
-        self._x_numbers = np.zeros(100, dtype=np.float32)     # x position on screen
-        self._y_numbers = np.zeros(100, dtype=np.float32)     # y position on screen
-        self._radii     = np.zeros(100, dtype=np.float32)     # radius on screen
-        self._red       = np.zeros(100, dtype=np.float32)      # red of rgb on screen
-        self._green     = np.zeros(100, dtype=np.float32)      # green of rgb on screen
-        self._blue      = np.zeros(100, dtype=np.float32)      # blue of rgb on screen
+        self._x_numbers = np.zeros(self._number_of_rings, dtype=np.float32)     # x position on screen
+        self._y_numbers = np.zeros(self._number_of_rings, dtype=np.float32)     # y position on screen
+        self._radii     = np.zeros(self._number_of_rings, dtype=np.float32)     # radius on screen
+        self._red       = np.zeros(self._number_of_rings, dtype=np.float32)      # red of rgb on screen
+        self._green     = np.zeros(self._number_of_rings, dtype=np.float32)      # green of rgb on screen
+        self._blue      = np.zeros(self._number_of_rings, dtype=np.float32)      # blue of rgb on screen
 
         self.set_parameters(settings)
 
@@ -69,6 +71,7 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
 
         self._wavespeed = 0.001 * settings['wavespeed']
         self._wavefrequency = 0.01 * settings['wavefrequency']
+        self._colour = settings['colour']
 
         # restart timer again
         if self._timer:
@@ -225,10 +228,27 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
         if error != gl.GL_NO_ERROR:
             print(f"glDrawArrays error: {error}")
 
-        # next step
+        # get the data
         data = self._get_data()[:,-1]
         data -= data.min()
         data /= data.max() or 1.0
+
+        # adjust the colours
+        # colour according to location
+        if self._colour == 'l':
+            pass     # TODO restore locations here
+
+        # colour according to variance:
+        elif self._colour == 'v':
+            self._red_values = 0.7 - 0.7 * (1 - data)
+            self._green_values = 0.5 - 0.5 * (1.0 - 2.0 * np.abs(data - 0.5))
+            self._blue_values = 0.7 - 0.7 * data
+
+        # colour accourding to frequency:
+        elif self._colour == 'f':
+            pass     # TODO to be implemented
+
+
         self._counters -= self._wavefrequency * data
         for n in range(0, len(self._counters)):
             if self._counters[n] < 0.0:
