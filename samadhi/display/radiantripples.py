@@ -140,7 +140,7 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
                        "     vec2 uv = 2.0*(gl_FragCoord.xy-iWindowCorner)/iResolution - 1.0 - pointCenter.xy; \n"
                        "     float s = colourSize[3]; \n"
                        "     if (s <= 0.0) discard; \n"
-                       "     float r = 2.5*length(uv); \n"
+                       "     float r = 1.5*length(uv); \n"
                        "     float x = r / s; \n"
                        "     float c = texture(rippleProfile, x / 2.0).r; \n"
                        "     fragColour = vec4(c * colourSize[0], \n"
@@ -229,9 +229,10 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
             print(f"glDrawArrays error: {error}")
 
         # get the data
-        data = self._get_data()[:,-1]
-        data -= data.min()
-        data /= data.max() or 1.0
+        variance, frequencies = self._get_data()
+        variance = variance[:,-1]
+        variance -= variance.min()
+        variance /= variance.max() or 1.0
 
         # adjust the colours
         # colour according to location
@@ -240,16 +241,20 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
 
         # colour according to variance:
         elif self._colour == 'v':
-            self._red_values = 0.7 - 0.7 * (1 - data)
-            self._green_values = 0.5 - 0.5 * (1.0 - 2.0 * np.abs(data - 0.5))
-            self._blue_values = 0.7 - 0.7 * data
+            self._blue_values = 0.7 - 0.7 * variance
+            self._red_values = 0.7 - 0.7 * (1 - variance)
+            self._green_values = 0.5 - 0.5 * (1.0 - 2.0 * np.abs(variance - 0.5))
 
         # colour accourding to frequency:
+        # alpha(2): blue - beta(3): green - gamma(4): yellow - delta(0): orange - theta(1): red
         elif self._colour == 'f':
-            pass     # TODO to be implemented
+            for n in range(0, len(self._red_values)):
+                bands = frequencies[n]
+                self._red_values[n] =   1.0*bands[0] + 1.0*bands[1] + 0.0*bands[2] + 0.0*bands[3] + 1.0*bands[4]
+                self._green_values[n] = 0.5*bands[0] + 0.0*bands[1] + 0.0*bands[2] + 1.0*bands[3] + 1.0*bands[4]
+                self._blue_values[n] =  0.0*bands[0] + 0.0*bands[1] + 1.0*bands[2] + 0.0*bands[3] + 0.0*bands[4]
 
-
-        self._counters -= self._wavefrequency * data
+        self._counters -= self._wavefrequency * variance
         for n in range(0, len(self._counters)):
             if self._counters[n] < 0.0:
                 self._x_numbers = np.roll(self._x_numbers, 1)

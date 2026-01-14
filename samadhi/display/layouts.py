@@ -272,8 +272,9 @@ class RadiantRipplesLayout(QtWidgets.QGridLayout):
 
         # colour coding
         box_colour = QtWidgets.QComboBox()
-        box_colour.addItem('Channel Location', 'l')
-        box_colour.addItem('Total Power', 'v')
+        box_colour.addItem('Location', 'l')
+        box_colour.addItem('Power', 'v')
+        box_colour.addItem('Frequency band', 'f')
         box_colour.currentIndexChanged.connect(self.update_rripples_display)
         settingslayout.addWidget(box_colour, 2, 0, 1, 1)
         settingslayout.addWidget(QtWidgets.QLabel("Colour Coding"), 2, 1, 1, 1)

@@ -51,6 +51,7 @@ class Mind:
     _fft_lock = threading.Lock()    # lock for fft data
     _fft_freqs = []      # buffer containing fft frequencies
     _bnd_data = []       # frequency band data: band frequencies
+    _bnd_channel_data = []     # frequency bands per channel
     _bnd_lock = threading.Lock()    # lock for bnd data
     _hst_data = []       # frequency band data: ring buffer that is constantly rooled
     _hst_lock = threading.Lock()    # lock for hst data
@@ -569,7 +570,7 @@ class Mind:
             self._rripples_tab = QtWidgets.QWidget()
 
             # add radiant ripples display layout to tab
-            RadiantRipplesLayout(self._rripples_tab, self.get_sqr_data, self.get_2d_layout)
+            RadiantRipplesLayout(self._rripples_tab, self.get_sqr_bnd_channel_data, self.get_2d_layout)
             self._parent_tabwidget.addTab(self._rripples_tab, "")
             self._parent_tabwidget.setTabText(self._parent_tabwidget.indexOf(self._rripples_tab),
                                               self._name + " -- Radiant Ripples")
@@ -849,12 +850,28 @@ class Mind:
 
                     # normalise by running mean
                     self._fft_data /= self._fft_running_mean
-                    fft_all_channels = self._fft_data.sum(axis=0)[1:] / self._channels     # sum of fft over all channels, excluding DC
+                    fft_all_channels = self._fft_data.mean(axis=0)[1:]     # sum of fft over all channels, excluding DC
 
                     # calculate bands and write into data
                     c = self._fft_resolution     # normalise each band by its width, as if it were 1.0 wide
-                    bnd_data = np.array([a[0].sum() * c / a[1] for a in
-                                         zip(np.split(fft_all_channels, self._bins[0])[:5], self._bins[1])])
+                    self._bnd_channel_data = np.array([
+                                                    a[0].mean(axis=1) * c / a[1] for a in    # mean per band / width
+                                                    zip(
+                                                        np.split(
+                                                            self._fft_data,            # fft channel/sample
+                                                            self._bins[0],             # indexes per pin
+                                                            axis=1                     # split into bins/channels
+                                                        )[:5],                         # why on earth did we define six bins??
+                                                        self._bins[1][:5]              # zip into tuples:
+                                                    )                                  #     (band/channels, band width)
+                                                ]).T                                   # array[channel, band value]
+
+                    # augment the fft band results per channel
+                    for c in range(len(self._bnd_channel_data)):
+                        self._bnd_channel_data[c] = np.square(self._bnd_channel_data[c])     # augment by squaring
+                        self._bnd_channel_data[c] -= self._bnd_channel_data[c].min()         # then stretching: One is 0, one is 1
+                        self._bnd_channel_data[c] /= self._bnd_channel_data[c].max()
+                    bnd_data = self._bnd_channel_data.sum(axis=0)
                     bnd_data = bnd_data / (bnd_data.sum() or 1.0)   # relative power
                     with self._bnd_lock:
                         self._bnd_data = smooth*self._bnd_data + (1.0-smooth)*bnd_data
@@ -909,8 +926,14 @@ class Mind:
     def get_bnd_data(self):
         return self._bnd_data
 
+    def get_bnd_channel_data(self):
+        return self._bnd_channel_data
+
     def get_sqr_data(self):
         return self._sqr_data
+
+    def get_sqr_bnd_channel_data(self):
+        return (self._sqr_data, self._bnd_channel_data)
 
     def get_2d_layout(self):
         return self._2d_layout
