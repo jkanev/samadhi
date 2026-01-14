@@ -597,7 +597,7 @@ class Mind:
         sqr_lines = self._sqr_axes.plot(np.arange(float(-self._sqr_data.shape[1]), 0.0),
                                         np.vstack([self._sqr_data, np.zeros(self._sqr_data.shape[1])]).T)
         self._sqr_axes.set_xlim(-float(self._sqr_data.shape[1]), -2.0)
-        fft_lines = self._fft_axes.plot(self._fft_freqs, np.vstack([self._fft_data, self._fft_running_mean]).T)
+        fft_lines = self._fft_axes.plot(self._fft_freqs, np.vstack([self._fft_data, np.zeros(self._fft_max)]).T)
         self._fft_axes.set_xlim(self._fft_freqs[0], self._fft_freqs[-1])
         bnd_bars = self._bnd_axes.bar([1, 2, 3, 4, 5], self._bnd_data)
         hst_lines = self._hst_axes.plot(np.arange(float(-self._hst_data.shape[1]), 0.0), self._hst_data.T)
@@ -646,13 +646,12 @@ class Mind:
                     sqr_lines[len(sqr_lines) - 1].set_ydata(self._sqr_data.mean(axis=0) / sqr_height)
                 with self._fft_lock:
                     self._fft_channel_height = 0.5 * self._fft_data.max()
-                    #print(self._fft_data.max())
                     if not self._fft_channel_height:
                         self._fft_channel_height = 1.0
                     for c in range(0, len(fft_lines)-1):
                         fft_lines[c].set_ydata(self._fft_data[c] / self._fft_channel_height + float(self._channels - c))
-                    fft_lines[len(fft_lines)-1].set_ydata(2.0 * self._fft_running_mean / self._fft_running_mean.max())
-                    #print(self._fft_running_mean.max())
+                    single_line_avg = self._fft_running_mean.mean(axis=0)
+                    fft_lines[len(fft_lines)-1].set_ydata(2.0 * ( 2.0 * single_line_avg / single_line_avg.max()))
                 with self._hst_lock:
                     hst_height = self._hst_data.max()
                     hst_height = hst_height or 1.0
@@ -811,7 +810,8 @@ class Mind:
         delay_ign = 50    # Period where everything is ignored
         delay = 0.0     # Delay counter
         factor = 0.999    # factor for smooth average of fft mean
-        self._fft_running_mean = 1e-12 * np.ones((1, self._fft_max))
+        self._fft_running_mean = 1e-12 * np.ones((self._channels, self._fft_max))
+        window = np.kaiser(self._samples, 6.0)  # kaiser window, beta hard coded to 6 for now
 
         # start streaming loop
         while self._streaming:
@@ -824,7 +824,7 @@ class Mind:
                     with self._fft_lock:
                         eeg_min = self._eeg_data.min()
                         eeg_max = self._eeg_data.max()
-                        self._fft_data = np.fft.rfft(self._eeg_data, axis=1)
+                        self._fft_data = np.fft.rfft(self._eeg_data * window, axis=1)
                     self._fft_data = (np.abs(self._fft_data)**2)[:,:self._fft_max]
 
                     # Build up starting estimate of mean fft, using the first 50 values after start.
@@ -842,15 +842,14 @@ class Mind:
 
                     # if the sampling frequency changes, init again
                     try:
-                        self._fft_running_mean = f * self._fft_running_mean + (1 - f) * self._fft_data.mean(axis=0)
+                        self._fft_running_mean = f * self._fft_running_mean + (1 - f) * self._fft_data
                     except ValueError:
-                        self._fft_running_mean = 1e-12 * np.ones((1, self._fft_max))
+                        self._fft_running_mean = 1e-12 * np.ones((self._channels, self._fft_max))
                         delay = 0
                         continue
 
                     # normalise by running mean
                     self._fft_data /= self._fft_running_mean
-                    fft_all_channels = self._fft_data.mean(axis=0)[1:]     # sum of fft over all channels, excluding DC
 
                     # calculate bands and write into data
                     c = self._fft_resolution     # normalise each band by its width, as if it were 1.0 wide
