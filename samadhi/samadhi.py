@@ -750,7 +750,7 @@ class Mind:
         metacycle = 0
         while self._streaming:
             with self._eeg_lock:
-                self._eeg_data = np.roll(self._eeg_data, -int(samples/10))
+                self._eeg_data = np.roll(self._eeg_data, -int(samples/10), axis=1)
                 self._eeg_data[:, -int(samples/10):] = (waves[f_window, :])[:, t_window]
             with self._gui_lock:
                 self._lsl_info = "SML Time {:0.1f} s".format(1.0)
@@ -779,12 +779,11 @@ class Mind:
             self._sampling_rate = rate or self._sampling_rate
             self._fft_freqs = np.fft.rfftfreq(self._samples, d=1.0 / self._sampling_rate)
             bin_freqs = np.array([3.5, 7.5, 12.5, 30.5, 50.0, 60.0])  # delta, theta, alpha, beta, gamma, total
-            bins = [abs(self._fft_freqs - f).argmin() for f in bin_freqs]
+            self._bins = [abs(self._fft_freqs - f).argmin() for f in bin_freqs]
             widths = np.insert(bin_freqs[1:] - bin_freqs[:-1], 0, bin_freqs[0])
             self._fft_resolution = self._fft_freqs[1]
-            self._fft_max = bins[-1]
+            self._fft_max = self._bins[-1]
             self._fft_freqs = self._fft_freqs[:self._fft_max]
-            self._bins = (bins, widths)
         return True
 
     def _analyse_psd(self):
@@ -818,7 +817,7 @@ class Mind:
             try:
                 with (self._eeg_lock):
                     with self._sqr_lock:
-                        self._sqr_data = np.roll(self._sqr_data, -1)
+                        self._sqr_data = np.roll(self._sqr_data, -1, axis=1)
                         var = self._eeg_data.var(1)
                         self._sqr_data[:,-1] = (var / (var.sum() or 1.0) ) * self._channels    # ensure each channel goes from 0.0 to 1.0
                     with self._fft_lock:
@@ -854,26 +853,24 @@ class Mind:
                     # calculate bands and write into data
                     c = self._fft_resolution     # normalise each band by its width, as if it were 1.0 wide
                     self._bnd_channel_data = np.array([
-                                                    a[0].mean(axis=1) * c / a[1] for a in    # mean per band / width
-                                                    zip(
-                                                        np.split(
-                                                            self._fft_data,            # fft channel/sample
-                                                            self._bins[0],             # indexes per pin
-                                                            axis=1                     # split into bins/channels
-                                                        )[:5],                         # why on earth did we define six bins??
-                                                        self._bins[1][:5]              # zip into tuples:
-                                                    )                                  #     (band/channels, band width)
-                                                ]).T                                   # array[channel, band value]
+                                                    a.mean(axis=1) for a in    # mean per band / width
+                                                    np.split(
+                                                        self._fft_data,        # fft channel/sample
+                                                        self._bins,            # indexes per pin
+                                                        axis=1                 # split into bins/channels
+                                                    )[:5]                      # why on earth did we define six bins??
+                                                ]).T                           # array[channel, band value]
 
-                    # augment the fft band results per channel
-                    for c in range(len(self._bnd_channel_data)):
-                        self._bnd_channel_data[c] = np.square(self._bnd_channel_data[c])     # augment by squaring
-                        self._bnd_channel_data[c] -= self._bnd_channel_data[c].min()         # then stretching: One is 0, one is 1
-                        self._bnd_channel_data[c] /= self._bnd_channel_data[c].max()
+                    # augment the fft band results per channel; first square, the subtract min then divide by max
+                    x = self._bnd_channel_data
+                    np.square(x, out=x)
+                    mins = x.min(axis=1, keepdims=True)
+                    maxs = x.max(axis=1, keepdims=True)
+                    np.divide(x - mins, np.maximum(maxs - mins, 1e-12), out=x)
                     bnd_data = self._bnd_channel_data.sum(axis=0)
                     bnd_data = bnd_data / (bnd_data.sum() or 1.0)   # relative power
                     with self._bnd_lock:
-                        self._bnd_data = smooth*self._bnd_data + (1.0-smooth)*bnd_data
+                        self._bnd_data = bnd_data
                         with self._hst_lock:
                             self._hst_data[:, :-1] = self._hst_data[:, 1:]
                             self._hst_data[:, -1] = self._bnd_data
