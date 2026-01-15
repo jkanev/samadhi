@@ -452,9 +452,7 @@ class Mind:
             self._sqr_axes.set_xticks([])
             self._sqr_axes.set_yticks(ticks=np.arange(0.5, self._channels + 1.5),
                                       labels=['Total'] + self._ch_names[::-1], color=label_c, fontsize=8)
-            self._sqr_axes.set_title('{} — rel. {:0.1f}-Seconds-Variance over {} minutes'.format(self._name,
-                                                                                             self._data_seconds,
-                                                                             self._history_length/60.0),
+            self._sqr_axes.set_title('{:0.1f}s-power'.format(self._data_seconds),
                                      color=title_c, fontsize=10, pad=5)
             self._sqr_axes.set_facecolor(outer_c)
             figure.set_facecolor(passepartout_c)
@@ -469,7 +467,7 @@ class Mind:
             plt.subplots_adjust(top=0.95, bottom=0.05, left=0.0, right=0.99)
             self._eeg_axes.set_xticks([])
             self._eeg_axes.set_yticks(ticks=[])
-            self._eeg_axes.set_title('{} — EEG over {:0.1f} Seconds'.format(self._name, self._data_seconds),
+            self._eeg_axes.set_title('{:0.1f} s EEG'.format(self._data_seconds),
                                      color=title_c, fontsize=10, pad=5)
             self._eeg_axes.set_facecolor(outer_c)
             figure.set_facecolor(passepartout_c)
@@ -499,7 +497,7 @@ class Mind:
             self._hst_axes.set_xticks([])
             self._hst_axes.set_xscale('symlog')
             self._hst_axes.set_yticks([0, 1, 2, 3, 4], ['δ', 'θ', 'α', 'β', 'γ'], color=label_c)
-            self._hst_axes.set_title('{} — rel. PSD History over {} minutes'.format(self._name, self._history_length/60.0),
+            self._hst_axes.set_title('Freq.bands over {} minutes'.format(self._history_length/60.0),
                                      color=title_c, fontsize=10, pad=5)
             self._hst_axes.set_facecolor(outer_c)
             figure.set_facecolor(passepartout_c)
@@ -520,10 +518,10 @@ class Mind:
             figure.set_facecolor(passepartout_c)
             plt.setp(self._bnd_axes.spines.values(), color=frame_c)
 
-            self._eegpsd_layout.setColumnStretch(0, 3)
-            self._eegpsd_layout.setColumnStretch(1, 2)
-            self._eegpsd_layout.setColumnStretch(2, 2)
-            self._eegpsd_layout.setRowStretch(0, 2)
+            self._eegpsd_layout.setColumnStretch(0, 2)
+            self._eegpsd_layout.setColumnStretch(1, 4)
+            self._eegpsd_layout.setColumnStretch(2, 3)
+            self._eegpsd_layout.setRowStretch(0, 4)
             self._eegpsd_layout.setRowStretch(1, 1)
 
             # start display thread
@@ -606,12 +604,12 @@ class Mind:
                 chn_line_colours.append(dark)
                 chn_band_colours.append(bright)
         # build vector with rainbow colours for frequency bands
+        freq_colours = np.array([(1,0,0), (1,0.5,0), (0,0,1.5), (0,1,0), (1,1,0)])
         freq_band_colours = []
         freq_line_colours = []
         for n in range(0, 5):
-            a = n/4.0
-            bright = (0.3+0.7*(1 - a), 0.5+0.5*(1.0 - 2.0*abs(a - 0.5)), 0.3+0.7*a)
-            dark = (0.7 - 0.7*(1 - a), 0.5 - 0.5*(1.0 - 2.0*abs(a - 0.5)), 0.7 - 0.7*a)
+            bright = 0.5 + 0.5*freq_colours[n]
+            dark = 0.3*freq_colours[n]
             if brightness < 0.5:
                 freq_line_colours.append(bright)
                 freq_band_colours.append(dark)
@@ -732,10 +730,10 @@ class Mind:
                 self._eeg_data, ts = self._eeg_stream.get_data()
 
                 # Check for change in sampling frequency. Some amplifiers stream differently than they announce.
-                #rate = self._samples / (ts[-1] - ts[0])
-                #if rate > 1.0 and rate < 0.95*self._sampling_rate or rate > 1.05*self._sampling_rate:
-                #    print(f"Warning: LSL sampling rate is {rate} Hz, expected {self._sampling_rate} Hz, adjusting.")
-                #    self._init_fft_freqs(rate)
+                rate = self._samples / (ts[-1] - ts[0])
+                if rate > 1.0 and rate < 0.95*self._sampling_rate or rate > 1.05*self._sampling_rate:
+                    print(f"Warning: LSL sampling rate is {rate} Hz, expected {self._sampling_rate} Hz, adjusting.")
+                    self._init_fft_freqs(rate)
 
             with self._gui_lock:
                 self._lsl_info = "LSL Time {:0.1f}".format(ts[-1])
@@ -849,7 +847,7 @@ class Mind:
                         self._sqr_data = np.roll(self._sqr_data, -1, axis=1)
                         var = self._eeg_data.var(1)
                         var -= var.min()
-                        self._sqr_data[1:,-1] = np.cumsum(((var - var.min()) / (var.sum() or 1.0) ) * self._channels)   # ensure each channel goes from 0.0 to 1.0
+                        self._sqr_data[1:,-1] = np.cumsum(((var - var.min()) / (var.sum() or 1.0) ) * self._channels)+1   # ensure each channel goes from 0.0 to 1.0
                     with self._fft_lock:
                         eeg_min = self._eeg_data.min()
                         eeg_max = self._eeg_data.max()
