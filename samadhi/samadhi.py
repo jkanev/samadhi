@@ -596,15 +596,18 @@ class Mind:
         chn_line_colours = []
         for c in range(0, self._channels):
             bright = (self._2d_layout[c][2], self._2d_layout[c][3], self._2d_layout[c][4])
-            dark = (0.5*self._2d_layout[c][2], 0.5*self._2d_layout[c][3], 0.5*self._2d_layout[c][4])
+            dark = (0.3*self._2d_layout[c][2], 0.3*self._2d_layout[c][3], 0.3*self._2d_layout[c][4])
             if brightness < 0.5:
                 chn_line_colours.append(bright)
                 chn_band_colours.append(dark)
             else:
                 chn_line_colours.append(dark)
                 chn_band_colours.append(bright)
+        chn_band_colours.append((0.5,0.5,0.5))
+        chn_line_colours.append((0.5,0.5,0.5))
+
         # build vector with rainbow colours for frequency bands
-        freq_colours = np.array([(1,0,0), (1,0.5,0), (0,0,1.5), (0,1,0), (1,1,0)])
+        freq_colours = np.array([(1,0.25,0.25), (1,0.5,0), (0.3,0.3,1.0), (0.25,1,0.25), (0.75,0.75,0)])
         freq_band_colours = []
         freq_line_colours = []
         for n in range(0, 5):
@@ -622,7 +625,7 @@ class Mind:
         self._eeg_axes.set_xlim(0, self._eeg_data.shape[1])
         sqr_lines = self._sqr_axes.stackplot(np.arange(float(-self._sqr_data.shape[1]), 0.0),
                                              self._sqr_data,
-                                             colors=chn_band_colours)
+                                             colors=chn_band_colours[::-1])
         self._sqr_axes.set_xlim(-float(self._sqr_data.shape[1]), -2.0)
         fft_lines = self._fft_axes.plot(self._fft_freqs,
                                         np.vstack([self._fft_data, np.zeros(self._fft_max)]).T)
@@ -685,8 +688,9 @@ class Mind:
                         verts = np.column_stack([top, bottom])
                         poly.set_verts([verts])
                 with self._bnd_lock:
+                    m = self._bnd_data.max()
                     for b in range(0, len(bnd_bars)):
-                        bnd_bars[b].set_height(self._bnd_data[b])
+                        bnd_bars[b].set_height(self._bnd_data[b] / m)
                 self._eeg_canvas.draw()
                 self._sqr_canvas.draw()
                 self._fft_canvas.draw()
