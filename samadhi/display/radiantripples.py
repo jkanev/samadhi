@@ -230,7 +230,6 @@ class OpenGLRadiantRipples(QtOpenGLWidgets.QOpenGLWidget):
 
         # get the data
         variance, frequencies = self._get_data()
-        variance = variance[:,-1]
         variance -= variance.min()
         variance /= variance.max() or 1.0
 
