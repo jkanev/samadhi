@@ -520,9 +520,9 @@ class Mind:
             figure.set_facecolor(passepartout_c)
             plt.setp(self._bnd_axes.spines.values(), color=frame_c)
 
-            self._eegpsd_layout.setColumnStretch(0, 2)
-            self._eegpsd_layout.setColumnStretch(1, 4)
-            self._eegpsd_layout.setColumnStretch(2, 3)
+            self._eegpsd_layout.setColumnStretch(0, 4)
+            self._eegpsd_layout.setColumnStretch(1, 5)
+            self._eegpsd_layout.setColumnStretch(2, 4)
             self._eegpsd_layout.setRowStretch(0, 4)
             self._eegpsd_layout.setRowStretch(1, 1)
 
@@ -598,7 +598,7 @@ class Mind:
         chn_line_colours = []
         for c in range(0, self._channels):
             bright = (self._2d_layout[c][2], self._2d_layout[c][3], self._2d_layout[c][4])
-            dark = (0.3*self._2d_layout[c][2], 0.3*self._2d_layout[c][3], 0.3*self._2d_layout[c][4])
+            dark = (0.5*self._2d_layout[c][2], 0.5*self._2d_layout[c][3], 0.5*self._2d_layout[c][4])
             if brightness < 0.5:
                 chn_line_colours.append(bright)
                 chn_band_colours.append(dark)
@@ -855,7 +855,7 @@ class Mind:
         delay = 0.0     # Delay counter
         factor = 0.999    # factor for smooth average of fft mean
         self._fft_running_mean = 1e-12 * np.ones((self._channels, self._fft_max))
-        window = np.kaiser(self._samples, 6.0)  # kaiser window, beta hard coded to 6 for now
+        window = np.kaiser(self._samples, 24.0)  # kaiser window, beta hard coded to 6 for now
 
         # start streaming loop
         while self._streaming:
