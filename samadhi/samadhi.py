@@ -43,10 +43,11 @@ class Mind:
     _channels = 0        # number of channels in the data
     _2d_layout = []      # x,y coordinates of channels, will be written after connecting to the stream
     _ch_names = []       # channel names
-    _history_length = 60.0   # length of history buffer in seconds
+    _history_length = 90.0   # length of history buffer in seconds
     _eeg_data = []       # pointer to the buffer that has just been filled, either data_a or data_b
     _eeg_lock = threading.Lock()    # lock for eeg data
     _eeg_times = []      # buffer containing eeg time stamps
+    _eeg_running_mean = None   # running mean for channel scaling
     _fft_data = []       # buffer containing the fft
     _fft_lock = threading.Lock()    # lock for fft data
     _fft_freqs = []      # buffer containing fft frequencies
@@ -90,19 +91,14 @@ class Mind:
     _eegpsd_tab = False
     _eeg_axes = False
     _eeg_canvas = False
-    _eeg_channel_height = 70e-6
     _sqr_axes = False
     _sqr_canvas = False
-    _sqr_channel_height = 70e-6
     _fft_axes = False
     _fft_canvas = False
-    _fft_channel_height = 50e-4
     _bnd_axes = False
     _bnd_canvas = False
-    _bnd_height = 110e-4
     _hst_axes = False
     _hst_canvas = False
-    _hst_height = 110e-4
 
     # fancy displays
     _ddots_tab = False     # dancing dots
@@ -454,7 +450,7 @@ class Mind:
             self._sqr_axes.set_xticks([])
             self._sqr_axes.set_yticks(ticks=np.arange(0.5, self._channels + 1.5),
                                       labels=['Total'] + self._ch_names[::-1], color=label_c, fontsize=8)
-            self._sqr_axes.set_title('{:0.1f}s-power'.format(self._data_seconds),
+            self._sqr_axes.set_title('Channel power over {} minutes'.format(self._history_length/60.0),
                                      color=title_c, fontsize=10, pad=5)
             self._sqr_axes.set_facecolor(outer_c)
             figure.set_facecolor(passepartout_c)
@@ -511,7 +507,7 @@ class Mind:
             self._bnd_axes = figure.add_subplot(111)
             plt.subplots_adjust(top=0.9, bottom=0.1, left=0.1, right=0.99)
             self._eegpsd_layout.addWidget(self._bnd_canvas, 1, 2, 1, 1)
-            self._bnd_axes.set_ylim([0.0, 1.1])
+            self._bnd_axes.set_ylim([0.0, 5.0])
             self._bnd_axes.set_xticks([1, 2, 3, 4, 5], ['δ', 'θ', 'α', 'β', 'γ'], color=label_c)
             self._bnd_axes.set_yticks([])
             self._bnd_axes.set_title('rel. Frequency Band Power'.format(self._data_seconds),
@@ -520,7 +516,7 @@ class Mind:
             figure.set_facecolor(passepartout_c)
             plt.setp(self._bnd_axes.spines.values(), color=frame_c)
 
-            self._eegpsd_layout.setColumnStretch(0, 4)
+            self._eegpsd_layout.setColumnStretch(0, 5)
             self._eegpsd_layout.setColumnStretch(1, 5)
             self._eegpsd_layout.setColumnStretch(2, 4)
             self._eegpsd_layout.setRowStretch(0, 4)
@@ -614,7 +610,7 @@ class Mind:
         freq_line_colours = []
         for n in range(0, 5):
             bright = 0.5 + 0.5*freq_colours[n]
-            dark = 0.3*freq_colours[n]
+            dark = 0.4*freq_colours[n]
             if brightness < 0.5:
                 freq_line_colours.append(bright)
                 freq_band_colours.append(dark)
@@ -639,6 +635,9 @@ class Mind:
                                              self._bndhst_data,
                                              colors=freq_band_colours)
         self._hst_axes.set_xlim(-self._bndhst_data.shape[1], -2.0)
+        with self._eeg_lock:
+            self._eeg_running_mean = 1e-12 * np.ones(self._channels)
+
 
         # assign line colours
         for c in range(0, len(eeg_lines)-1):
@@ -650,13 +649,13 @@ class Mind:
         # start the thread loop
         while self._streaming and self._showing_eegpsd:
             try:
+
+                # write eeg plots
                 with self._eeg_lock:
-                    eeg_max = self._eeg_data.max()
-                    eeg_min = self._eeg_data.min()
+                    height = self._eeg_data.max(axis=1) - self._eeg_data.min(axis=1)
                     for c in range(0, len(eeg_lines)-1):
-                        eeg_lines[c].set_ydata(self._eeg_data[c]/self._eeg_channel_height + float(self._channels - c) + 0.5)
-                    eeg_lines[len(eeg_lines) - 1].set_ydata(self._eeg_data.mean(axis=0)/self._eeg_channel_height + 0.5)
-                self._eeg_channel_height = 0.5*(eeg_max - eeg_min)
+                        eeg_lines[c].set_ydata(self._eeg_data[c]/height[c] + float(self._channels - c) + 0.5)
+                    eeg_lines[len(eeg_lines) - 1].set_ydata(self._eeg_data.mean(axis=0)/height.mean() + 0.5)
 
                 # write variance plots
                 with self._sqr_lock:
@@ -673,13 +672,11 @@ class Mind:
 
                 # write fft plots
                 with self._fft_lock:
-                    self._fft_channel_height = 0.5 * self._fft_data.max()
-                    if not self._fft_channel_height:
-                        self._fft_channel_height = 1.0
+                    height = 0.75 * self._fft_data.max(axis=1)
                     for c in range(0, len(fft_lines)-1):
-                        fft_lines[c].set_ydata(self._fft_data[c] / self._fft_channel_height + float(self._channels - c))
+                        fft_lines[c].set_ydata(self._fft_data[c] / height[c] + float(self._channels - c))
                     single_line_avg = self._fft_running_mean.mean(axis=0)
-                    fft_lines[len(fft_lines)-1].set_ydata(2.0 * ( 2.0 * single_line_avg / single_line_avg.max()))
+                    fft_lines[len(fft_lines)-1].set_ydata(2.0 * (single_line_avg / single_line_avg.max()))
 
                 # write band history plots
                 with self._hst_lock:
@@ -695,9 +692,8 @@ class Mind:
 
                 # write frequency band bar graph
                 with self._bnd_lock:
-                    m = self._bnd_data.max()
                     for b in range(0, len(bnd_bars)):
-                        bnd_bars[b].set_height(self._bnd_data[b] / m)
+                        bnd_bars[b].set_height(self._bnd_data[b])
 
                 # draw everything
                 self._eeg_canvas.draw()
@@ -746,10 +742,16 @@ class Mind:
 
                 # Check for change in sampling frequency. Some amplifiers stream differently than they announce.
                 try:
-                    rate = self._samples / (ts[-1] - ts[0])
+                    if (ts[-1] - ts[0]):
+                        rate = self._samples / (ts[-1] - ts[0])
+                    else:
+                        rate = 0
                     if rate > 1.0 and rate < 0.9*self._sampling_rate or rate > 1.1*self._sampling_rate:
                         print(f"Warning: LSL sampling rate is {rate} Hz, expected {self._sampling_rate} Hz, adjusting.")
                         self._init_fft_freqs(rate)
+                        self._connect_eeg_stream(False)
+                        self._connect_eeg_stream(True)
+
                 except:
                     pass
 
@@ -855,7 +857,7 @@ class Mind:
         delay = 0.0     # Delay counter
         factor = 0.999    # factor for smooth average of fft mean
         self._fft_running_mean = 1e-12 * np.ones((self._channels, self._fft_max))
-        window = np.kaiser(self._samples, 24.0)  # kaiser window, beta hard coded to 6 for now
+        window = np.kaiser(self._samples, 12.0)  # kaiser window, beta hard coded to 6 for now
 
         # start streaming loop
         while self._streaming:
@@ -872,10 +874,7 @@ class Mind:
 
                     # calculate fft
                     with self._fft_lock:
-                        eeg_min = self._eeg_data.min()
-                        eeg_max = self._eeg_data.max()
-                        self._fft_data = np.fft.rfft(self._eeg_data * window, axis=1)
-                    self._fft_data = (np.abs(self._fft_data)**2)[:,:self._fft_max]
+                        self._fft_data = np.abs( np.fft.rfft( self._eeg_data * window, axis=1)[:,:self._fft_max] )**2
 
                     # Build up starting estimate of mean fft, using the first 50 values after start.
                     # Use very little information at the beginning of the interval (values are bad, as filters
@@ -898,8 +897,10 @@ class Mind:
                         delay = 0
                         continue
 
-                    # normalise by running mean
-                    self._fft_data /= self._fft_running_mean
+                    with self._fft_lock:
+                        # normalise by running mean
+                        np.divide(self._fft_data, self._fft_running_mean, out=self._fft_data)
+                        np.divide(self._fft_data, self._fft_data.sum(axis=1, keepdims=True), out=self._fft_data)
 
                     # calculate bands and write into data
                     with self._bnd_lock:
@@ -914,22 +915,26 @@ class Mind:
                                                         )[:5]                      # why on earth did we define six bins??
                                                     ]).T                           # array[channel, band value]
 
-                        # augment the fft band results per channel; first square, the subtract min then divide by max
-                        x = self._bnd_channel_data
-                        np.square(x, out=x)
-                        mins = x.min(axis=1, keepdims=True)
-                        maxs = x.max(axis=1, keepdims=True)
-                        np.divide(x - mins, np.maximum(maxs - mins, 1e-12), out=x)
-
                         # sum up to band totals and write int band data and history
                         bnd_data = self._bnd_channel_data.sum(axis=0)
-                        bnd_data = 5.0*bnd_data / (bnd_data.sum() or 1.0)   # relative power
+                        bnd_data = 5.0 * bnd_data / (bnd_data.sum() or 1.0)   # relative power
                         self._bnd_data = bnd_data
                         with self._hst_lock:
                             self._bndhst_data[:, :-1] = self._bndhst_data[:, 1:]
                             self._bndhst_data[:,-1] = np.cumsum(self._bnd_data)
 
+                        # augment the fft band results per channel; first square, the subtract min then divide by max
+                        # (local field potential)
+                        x = self._bnd_channel_data
+                        np.divide(x, x.sum(axis=0, keepdims=True), out=x)  # normalise single band over entire cap
+                        mins = x.min(axis=1, keepdims=True)                # minimum per pand
+                        maxs = x.max(axis=1, keepdims=True)                # maximum per pand
+                        np.divide(x - mins, np.maximum(maxs - mins, 1e-12), out=x)   # scale between min and max
+                        np.square(x, out=x)                                # square to have clearer colours
+
                     # write label info for gui
+                    eeg_min = self._eeg_data.min()
+                    eeg_max = self._eeg_data.max()
                     self._bnd_info = "Freq δ {:0.1f} | θ {:0.1f} | α {:0.1f} | β {:0.1f} | γ {:0.1f}".format(*self._bnd_data)
                     #self._eeg_info = "{:.1f} µV - {:.1f} µV".format(eeg_min * 1e6, eeg_max * 1e6)
                     self._eeg_info = "{:.1f} µV - {:.1f} µV".format(eeg_min, eeg_max)
