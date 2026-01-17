@@ -198,7 +198,7 @@ class Mind:
         except:
             pass
 
-    def _connect_eeg_stream(self, connect, restart_resolve=True):
+    def _connect_eeg_stream(self, connect, rate=0.0, restart_resolve=True):
         """
         Connects a single EEG stream
         Add the stream 'name' to the array of streams and starts pulling data
@@ -229,7 +229,7 @@ class Mind:
                             try:
                                 # set gui info
                                 self._channels = s.n_channels
-                                self._sampling_rate = s.sfreq
+                                self._sampling_rate = rate or s.sfreq
                                 self._samples = int(self._data_seconds * self._sampling_rate)
                                 self._eeg_stream = Stream(bufsize=self._data_seconds, name=s_name, stype=s.stype,
                                                           source_id=s.source_id)
@@ -747,10 +747,10 @@ class Mind:
                     else:
                         rate = 0
                     if rate > 1.0 and rate < 0.9*self._sampling_rate or rate > 1.1*self._sampling_rate:
-                        print(f"Warning: LSL sampling rate is {rate} Hz, expected {self._sampling_rate} Hz, adjusting.")
-                        self._init_fft_freqs(rate)
+                        print(f"Warning: LSL sampling rate is {rate} Hz, expected {self._sampling_rate} Hz, "
+                              f"adjusting and closing all views. Please re-open.")
                         self._connect_eeg_stream(False)
-                        self._connect_eeg_stream(True)
+                        self._connect_eeg_stream(True, rate=rate)
 
                 except:
                     pass
