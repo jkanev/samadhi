@@ -862,9 +862,8 @@ class Mind:
         # start streaming loop
         while self._streaming:
             try:
-                with (self._eeg_lock):
-
-                    # calculate variance data
+                # calculate variance data
+                with self._eeg_lock:
                     with self._sqr_lock:
                         self._sqrhst_data = np.roll(self._sqrhst_data, -1, axis=1)
                         var = self._eeg_data.var(1)
@@ -872,67 +871,69 @@ class Mind:
                         self._sqr_data = (var - var.min()) / (var.sum() or 1.0)
                         self._sqrhst_data[:,-1] = np.cumsum(self._sqr_data[::-1]) * self._channels + 1   # ensure each channel goes from 0.0 to 1.0
 
-                    # calculate fft
+                # calculate fft
+                with self._eeg_lock:
                     with self._fft_lock:
                         self._fft_data = np.abs( np.fft.rfft( self._eeg_data * window, axis=1)[:,:self._fft_max] )**2
 
-                    # Build up starting estimate of mean fft, using the first 50 values after start.
-                    # Use very little information at the beginning of the interval (values are bad, as filters
-                    # are still kicking into action), and a lot from the end part of the interval.
-                    # After the initial delay period is over, use standard slowly adapting mean
-                    if delay > delay_max:
-                        f = 0.999
-                    elif delay > delay_ign:
-                        f = factor * (delay - delay_ign) / (delay_max - delay_ign)     # runs from 0.0 to "factor"
-                        delay += 1.0
-                    else:
-                        delay += 1.0
-                        continue
+                # Build up starting estimate of mean fft, using the first 50 values after start.
+                # Use very little information at the beginning of the interval (values are bad, as filters
+                # are still kicking into action), and a lot from the end part of the interval.
+                # After the initial delay period is over, use standard slowly adapting mean
+                if delay > delay_max:
+                    f = 0.999
+                elif delay > delay_ign:
+                    f = factor * (delay - delay_ign) / (delay_max - delay_ign)     # runs from 0.0 to "factor"
+                    delay += 1.0
+                else:
+                    delay += 1.0
+                    continue
 
-                    # if the sampling frequency changes, init again
-                    try:
-                        self._fft_running_mean = f * self._fft_running_mean + (1 - f) * self._fft_data
-                    except ValueError:
-                        self._fft_running_mean = 1e-12 * np.ones((self._channels, self._fft_max))
-                        delay = 0
-                        continue
+                # if the sampling frequency changes, init again
+                try:
+                    self._fft_running_mean = f * self._fft_running_mean + (1 - f) * self._fft_data
+                except ValueError:
+                    self._fft_running_mean = 1e-12 * np.ones((self._channels, self._fft_max))
+                    delay = 0
+                    continue
 
-                    with self._fft_lock:
-                        # normalise by running mean
-                        np.divide(self._fft_data, self._fft_running_mean, out=self._fft_data)
-                        np.divide(self._fft_data, self._fft_data.sum(axis=1, keepdims=True), out=self._fft_data)
+                with self._fft_lock:
+                    # normalise by running mean
+                    np.divide(self._fft_data, self._fft_running_mean, out=self._fft_data)
+                    np.divide(self._fft_data, self._fft_data.sum(axis=1, keepdims=True), out=self._fft_data)
 
-                    # calculate bands and write into data
-                    with self._bnd_lock:
+                # calculate bands and write into data
+                with self._bnd_lock:
 
-                        # create bands per channel and write into self
-                        self._bnd_channel_data = np.array([
-                                                        a.mean(axis=1) for a in    # mean per band / width
-                                                        np.split(
-                                                            self._fft_data,        # fft channel/sample
-                                                            self._bins,            # indexes per pin
-                                                            axis=1                 # split into bins/channels
-                                                        )[:5]                      # why on earth did we define six bins??
-                                                    ]).T                           # array[channel, band value]
+                    # create bands per channel and write into self
+                    self._bnd_channel_data = np.array([
+                                                    a.mean(axis=1) for a in    # mean per band / width
+                                                    np.split(
+                                                        self._fft_data,        # fft channel/sample
+                                                        self._bins,            # indexes per pin
+                                                        axis=1                 # split into bins/channels
+                                                    )[:5]                      # why on earth did we define six bins??
+                                                ]).T                           # array[channel, band value]
 
-                        # sum up to band totals and write int band data and history
-                        bnd_data = self._bnd_channel_data.sum(axis=0)
-                        bnd_data = 5.0 * bnd_data / (bnd_data.sum() or 1.0)   # relative power
-                        self._bnd_data = bnd_data
-                        with self._hst_lock:
-                            self._bndhst_data[:, :-1] = self._bndhst_data[:, 1:]
-                            self._bndhst_data[:,-1] = np.cumsum(self._bnd_data)
+                    # sum up to band totals and write int band data and history
+                    bnd_data = self._bnd_channel_data.sum(axis=0)
+                    bnd_data = 5.0 * bnd_data / (bnd_data.sum() or 1.0)   # relative power
+                    self._bnd_data = bnd_data
+                    with self._hst_lock:
+                        self._bndhst_data[:, :-1] = self._bndhst_data[:, 1:]
+                        self._bndhst_data[:,-1] = np.cumsum(self._bnd_data)
 
-                        # augment the fft band results per channel; first square, the subtract min then divide by max
-                        # (local field potential)
-                        x = self._bnd_channel_data
-                        np.divide(x, x.sum(axis=0, keepdims=True), out=x)  # normalise single band over entire cap
-                        mins = x.min(axis=1, keepdims=True)                # minimum per pand
-                        maxs = x.max(axis=1, keepdims=True)                # maximum per pand
-                        np.divide(x - mins, np.maximum(maxs - mins, 1e-12), out=x)   # scale between min and max
-                        np.square(x, out=x)                                # square to have clearer colours
+                    # augment the fft band results per channel; first square, the subtract min then divide by max
+                    # (local field potential)
+                    x = self._bnd_channel_data
+                    np.divide(x, x.sum(axis=0, keepdims=True), out=x)  # normalise single band over entire cap
+                    mins = x.min(axis=1, keepdims=True)                # minimum per pand
+                    maxs = x.max(axis=1, keepdims=True)                # maximum per pand
+                    np.divide(x - mins, np.maximum(maxs - mins, 1e-12), out=x)   # scale between min and max
+                    np.square(x, out=x)                                # square to have clearer colours
 
-                    # write label info for gui
+                # write label info for gui
+                with self._eeg_lock:
                     eeg_min = self._eeg_data.min()
                     eeg_max = self._eeg_data.max()
                     self._bnd_info = "Freq δ {:0.1f} | θ {:0.1f} | α {:0.1f} | β {:0.1f} | γ {:0.1f}".format(*self._bnd_data)
