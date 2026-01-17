@@ -740,20 +740,19 @@ class Mind:
             with self._eeg_lock:
                 self._eeg_data, ts = self._eeg_stream.get_data()
 
-                # Check for change in sampling frequency. Some amplifiers stream differently than they announce.
-                try:
-                    if (ts[-1] - ts[0]):
-                        rate = self._samples / (ts[-1] - ts[0])
-                    else:
-                        rate = 0
-                    if rate > 1.0 and rate < 0.9*self._sampling_rate or rate > 1.1*self._sampling_rate:
-                        print(f"Warning: LSL sampling rate is {rate} Hz, expected {self._sampling_rate} Hz, "
-                              f"adjusting and closing all views. Please re-open.")
-                        self._connect_eeg_stream(False)
-                        self._connect_eeg_stream(True, rate=rate)
+            # Check for change in sampling frequency. Some amplifiers stream differently than they announce.
+            try:
+                if (ts[-1] - ts[0]):
+                    rate = self._samples / (ts[-1] - ts[0])
+                else:
+                    rate = 0
+                if rate > 1.0 and rate < 0.9*self._sampling_rate or rate > 1.1*self._sampling_rate:
+                    print(f"Warning: LSL sampling rate is {rate} Hz, expected {self._sampling_rate} Hz, "
+                          f"Please re-open views if necessary.")
+                    self._init_fft_freqs(rate)
 
-                except:
-                    pass
+            except:
+                pass
 
             with self._gui_lock:
                 self._lsl_info = "LSL Time {:0.1f}".format(ts[-1])
