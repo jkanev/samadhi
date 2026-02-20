@@ -720,15 +720,6 @@ class Mind:
         print("Starting LSL reading.")
 
         # init data buffers
-        connected = False
-        while not connected:
-            try:
-                connected = self._eeg_stream.connected
-            except:
-                connected = False
-            print("Connection problem, waiting...")
-            time.sleep(1.0)
-
         self._eeg_stream.filter(2, 60)
         self._eeg_stream.notch_filter(50)
         self._eeg_stream.get_data()  # reset the number of new samples after the filter is applied
